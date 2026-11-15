@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runChain, runDetached } from '../run'
+import { notifyOnce } from '../notify'
+import { findChainRoot } from './ack'
 import { registerCommand } from '../cli'
 
 function usage(): string {
@@ -102,7 +104,7 @@ export async function runRun(rawArgs: string[]): Promise<number> {
     const { code } = await runDetached({ brief, dir, kind, dataClass, timeoutS, startTier }, passthrough)
     return code
   }
-  const { code } = await runChain({
+  const { code, block } = await runChain({
     brief,
     dir,
     kind,
@@ -123,6 +125,10 @@ export async function runRun(rawArgs: string[]): Promise<number> {
     bypass,
     dryRun
   })
+  const fanoutLine = /^FANOUT job=([0-9A-HJKMNP-TV-Z]{26}) /m.exec(block)
+  if (fanoutLine) {
+    await notifyOnce(findChainRoot(fanoutLine[1]) ?? fanoutLine[1], block)
+  }
   return code
 }
 

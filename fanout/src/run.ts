@@ -9,12 +9,14 @@ import { detectCaller } from './caller'
 import { kindInfo, type CatalogRow, loadCatalog } from './catalog'
 import { chunkClass, rowClass } from './dataclass'
 import { classify, defaultScope } from './classify'
+import { billableCost, billableCostAsync, estimate, estimateLine, type Estimate } from './cost'
 import { appendEvent, readEvents } from './events'
 import { killGroup, readStartTicks, runProcess, workerEnv } from './exec'
 import { acquireLease, leasePath } from './lease'
+import { reapStaleLeases } from './reaper'
 import { dataDir } from './paths'
 import { candidates, nextCandidate, nextRung, resolveModel, type PickInput } from './pick'
-import { formatLocalHM, renderBlock, type Hop, type PreFallback, type Retry } from './result'
+import { formatLocalHM, renderBlock, type PreFallback, type RenderExtra } from './result'
 import { backoffUntil, coolingOf, halfOpenTrialKey, readState, releaseTrial, takeTrial, waitTarget } from './state'
 import { scrubTail } from './scrub'
 import { newId } from './ulid'
@@ -78,10 +80,26 @@ function writeBlock(root: string, block: string): void {
   }
 }
 
+/** Render the live block through the same ledger path a later `wait` would use. */
+function liveBlock(
+  root: string,
+  extra: Omit<RenderExtra, 'live'> | undefined,
+  live: NonNullable<RenderExtra['live']>
+): string {
+  const block = renderBlock(root, { ...extra, live })
+  if (block === undefined) throw new Error(`fanout: no ledger events for chain ${root}`)
+  return block
+}
+
 export async function runDetached(o: RunOptions, passthrough: string[]): Promise<{ code: number; block: string }> {
   const briefText = readFileSync(o.brief, 'utf8')
   const briefBytes = Buffer.byteLength(briefText, 'utf8')
-  const { rows, warnings } = loadCatalog()
+  const { rows, warnings, fatal } = loadCatalog()
+  if (fatal) {
+    console.log(fatal)
+    return { code: 3, block: fatal }
+  }
+  await reapStaleLeases()
   for (const w of warnings) console.error(w)
   const actualClass = o.dataClass ?? chunkClass(o.dir)
   const upstreamOf = (row: { harness: string; model: string }) => adapterFor(row.harness).upstream?.(row.model)
@@ -143,7 +161,12 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
   const briefText = readFileSync(o.brief, 'utf8')
   const briefBytes = Buffer.byteLength(briefText, 'utf8')
   const briefSha = createHash('sha256').update(briefText, 'utf8').digest('hex')
-  const { rows, warnings } = loadCatalog()
+  const { rows, warnings, fatal } = loadCatalog()
+  if (fatal) {
+    console.log(fatal)
+    return { code: 3, block: fatal }
+  }
+  await reapStaleLeases()
   for (const w of warnings) console.error(w)
   const dir = o.dir
   const actualClass = o.dataClass ?? chunkClass(dir)
@@ -339,7 +362,6 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
     const skippedHarness = new Set<string>()
     const notes: string[] = []
     const attempts: { harness: string; model: string; outcome: string; resetsHHMM?: string }[] = []
-    const retries: Retry[] = []
     const unknownCounts = new Map<string, number>()
     let pendingReason: string | undefined = o.escalateFrom ? 'escalate' : undefined
     let attempt = 0
@@ -353,6 +375,15 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
     let finalOutcome = 'unknown'
     let finalWorktree: string | undefined
     let finalPatch: string | undefined
+    const liveValues = (): NonNullable<RenderExtra['live']> => ({
+      job: finalJob,
+      harness: finalHarness,
+      model: finalModel,
+      outcome: finalOutcome,
+      attempt,
+      ...(finalWorktree ? { worktree: finalWorktree } : {}),
+      ...(finalPatch ? { patch: finalPatch } : {})
+    })
     let stopNote: string | undefined
     for (;;) {
       const next = nextCandidate(list, tried, skippedHarness, deferred)
@@ -383,21 +414,18 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
           continue
         }
         const triedText = attempts.map((a) => `${a.harness}/${a.model} (${a.outcome})`).join(', ')
-        const rendered = renderBlock({
-          job: finalJob,
-          harness: finalHarness,
-          model: finalModel,
-          outcome: finalOutcome,
-          attempt,
-          ...(finalWorktree ? { worktree: finalWorktree } : {}),
-          ...(finalPatch ? { patch: finalPatch } : {}),
-          ...(preFallback ? { preFallback } : {}),
-          notes,
-          failed: `FAILED all candidates exhausted. Tried: ${triedText}`
-        })
-        console.log(rendered.block)
-        writeBlock(root, rendered.block)
-        return { code: 1, block: rendered.block }
+        const block = liveBlock(
+          root,
+          {
+            ...(preFallback ? { preFallback } : {}),
+            notes,
+            failedText: `FAILED all candidates exhausted. Tried: ${triedText}`
+          },
+          liveValues()
+        )
+        console.log(block)
+        writeBlock(root, block)
+        return { code: 1, block }
       }
       const adapter = adapterFor(next.row.harness)
       const preflight = await adapter.preflight({ quick: true })
@@ -492,6 +520,19 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
           `FALLBACK ${sk.from} not started (${sk.reason}) -> ${next.row.harness}/${next.row.model}. Tell the user, then run: fanout ack ${root}`
         )
       }
+      let est: Estimate | undefined
+      const billable = next.row.billing === 'paid' || next.row.billing === 'per_call'
+      if (billable) {
+        try {
+          const e = estimate(next.row, o.kind, { maxTurns })
+          if (e && (e.usd !== undefined || e.mc !== undefined)) {
+            est = e
+            console.error(estimateLine(next.row, e))
+          }
+        } catch {
+          console.error('NOTE cost estimate failed')
+        }
+      }
       appendEvent({
         v: 1,
         ts: nowIso(),
@@ -512,6 +553,8 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
         ...(attempt === 1 ? (o.escalateFrom ? { from_job: o.escalateFrom } : {}) : { from_job: prevJob }),
         ...(expectedKey ? { expected: expectedKey } : {}),
         billing: next.row.billing,
+        ...(est?.usd !== undefined ? { cost_est_usd: est.usd } : {}),
+        ...(est?.mc !== undefined ? { cost_est_mc: est.mc, calls_est: est.calls } : {}),
         brief_sha: briefSha,
         caller,
         ...(session !== undefined ? { session } : {}),
@@ -548,10 +591,18 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
           if (fin.patch) finalPatch = fin.patch
         }
       }
+      const endTs = nowMs()
       if (signal) {
         const detail = `interrupted by ${signal}`
         finalOutcome = 'worker_error'
         attempts.push({ harness: next.row.harness, model: next.row.model, outcome: 'worker_error' })
+        let logUsage
+        try {
+          logUsage = adapter.usage(readFileSync(logOut, 'utf8'))
+        } catch {
+          logUsage = undefined
+        }
+        const interruptCost = billableCost(next.row, est, logUsage, 'computed from the worker log')
         appendEvent({
           v: 1,
           ts: nowIso(),
@@ -564,36 +615,38 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
           outcome: 'worker_error',
           detail,
           exit: out.exit,
-          duration_s: Math.round(((nowMs() - startTs) / 1000) * 1000) / 1000,
-          cost_source: 'unknown',
+          duration_s: Math.round(((endTs - startTs) / 1000) * 1000) / 1000,
+          ...interruptCost.fields,
           caller,
           ...(session !== undefined ? { session } : {}),
           repo
         })
         finishAttempt()
-        const rendered = renderBlock({
-          job: finalJob,
-          harness: finalHarness,
-          model: finalModel,
-          outcome: 'worker_error',
-          attempt,
-          ...(finalWorktree ? { worktree: finalWorktree } : {}),
-          ...(finalPatch ? { patch: finalPatch } : {}),
-          ...(preFallback ? { preFallback } : {}),
-          notes
-        })
-        console.log(rendered.block)
-        writeBlock(root, rendered.block)
-        return { code: signal === 'SIGTERM' ? 143 : 130, block: rendered.block }
+        const block = liveBlock(root, { ...(preFallback ? { preFallback } : {}), notes }, liveValues())
+        console.log(block)
+        writeBlock(root, block)
+        return { code: signal === 'SIGTERM' ? 143 : 130, block }
       }
       const usage = adapter.usage(out.stdout)
-      const classified = classify(adapter, out, nowMs())
+      const classified = classify(adapter, out, endTs)
       let outcome = classified.outcome
       if (outcome === 'ok' && kindInfo(o.kind).writes) {
         const changed = ws.changedFiles()
         if (Array.isArray(changed) && changed.length === 0) outcome = 'no_effect'
       }
       finalOutcome = outcome
+      const normalCost = billable
+        ? await billableCostAsync(
+            next.row,
+            est,
+            usage,
+            startTs,
+            endTs,
+            root,
+            adapter,
+            (h) => adapterFor(h).proxyBacked === true
+          )
+        : { fields: { cost_source: usage ? 'computed' : 'unknown' } as Record<string, unknown>, line: undefined }
       const endEvent: Record<string, unknown> = {
         v: 1,
         ts: nowIso(),
@@ -605,8 +658,8 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
         model: next.row.model,
         outcome,
         exit: out.exit,
-        duration_s: Math.round(((nowMs() - startTs) / 1000) * 1000) / 1000,
-        cost_source: usage ? 'computed' : 'unknown',
+        duration_s: Math.round(((endTs - startTs) / 1000) * 1000) / 1000,
+        ...normalCost.fields,
         caller,
         ...(session !== undefined ? { session } : {}),
         repo
@@ -628,53 +681,43 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
           outcome === 'job_error'
             ? `FAILED job_error: ${classified.match ?? 'job_error'}. The chunk is too large or malformed for this model; split it, or run: fanout run --escalate-from ${finalJob}`
             : `FAILED no_effect: the worker exited 0 but changed no file. Read LOG=${logOut}, then re-brief, or run: fanout run --escalate-from ${finalJob}`
-        const rendered = renderBlock({
-          job: finalJob,
-          harness: finalHarness,
-          model: finalModel,
-          outcome,
-          attempt,
-          ...(finalWorktree ? { worktree: finalWorktree } : {}),
-          ...(finalPatch ? { patch: finalPatch } : {}),
-          retries,
-          ...(preFallback ? { preFallback } : {}),
-          notes,
-          failed
-        })
-        console.log(rendered.block)
-        writeBlock(root, rendered.block)
-        return { code: 1, block: rendered.block }
+        const block = liveBlock(
+          root,
+          {
+            ...(preFallback ? { preFallback } : {}),
+            notes,
+            failedText: failed
+          },
+          liveValues()
+        )
+        console.log(block)
+        writeBlock(root, block)
+        return { code: 1, block }
       }
       const capStop = (outcome: string): string | undefined => {
         if (!o.pin && attempt < maxAttempts) return undefined
         attempts.push({ harness: next.row.harness, model: next.row.model, outcome })
         finishAttempt()
         const triedText = attempts.map((a) => `${a.harness}/${a.model} (${a.outcome})`).join(', ')
-        const rendered = renderBlock({
-          job: finalJob,
-          harness: finalHarness,
-          model: finalModel,
-          outcome,
-          attempt,
-          ...(finalWorktree ? { worktree: finalWorktree } : {}),
-          ...(finalPatch ? { patch: finalPatch } : {}),
-          fallbacks: hops(attempts, finalJob),
-          retries,
-          ...(preFallback ? { preFallback } : {}),
-          notes,
-          failed: o.pin
-            ? `FAILED all candidates exhausted. Tried: ${triedText}`
-            : `FAILED stopped after ${maxAttempts} attempts. Tried: ${triedText}`
-        })
-        console.log(rendered.block)
-        writeBlock(root, rendered.block)
-        return rendered.block
+        const block = liveBlock(
+          root,
+          {
+            ...(preFallback ? { preFallback } : {}),
+            notes,
+            failedText: o.pin
+              ? `FAILED all candidates exhausted. Tried: ${triedText}`
+              : `FAILED stopped after ${maxAttempts} attempts. Tried: ${triedText}`
+          },
+          liveValues()
+        )
+        console.log(block)
+        writeBlock(root, block)
+        return block
       }
       if (outcome === 'unknown') {
         const seen = (unknownCounts.get(rowKey) ?? 0) + 1
         unknownCounts.set(rowKey, seen)
         if (seen === 1) {
-          retries.push({ harness: next.row.harness, model: next.row.model, outcome })
           attempts.push({ harness: next.row.harness, model: next.row.model, outcome })
           pendingReason = 'retry'
           finishAttempt({ tried: false, release: false })
@@ -688,23 +731,18 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
         if (prior >= 1) {
           const triedText = attempts.map((a) => `${a.harness}/${a.model} (${a.outcome})`).join(', ')
           const note = 'NOTE timed out twice; split the chunk or raise --timeout'
-          const rendered = renderBlock({
-            job: finalJob,
-            harness: finalHarness,
-            model: finalModel,
-            outcome,
-            attempt,
-            ...(finalWorktree ? { worktree: finalWorktree } : {}),
-            ...(finalPatch ? { patch: finalPatch } : {}),
-            fallbacks: hops(attempts, finalJob),
-            retries,
-            ...(preFallback ? { preFallback } : {}),
-            notes: [...notes, note],
-            failed: `FAILED timed out twice. Tried: ${triedText}`
-          })
-          console.log(rendered.block)
-          writeBlock(root, rendered.block)
-          return { code: 1, block: rendered.block }
+          const block = liveBlock(
+            root,
+            {
+              ...(preFallback ? { preFallback } : {}),
+              notes: [...notes, note],
+              failedText: `FAILED timed out twice. Tried: ${triedText}`
+            },
+            liveValues()
+          )
+          console.log(block)
+          writeBlock(root, block)
+          return { code: 1, block }
         }
         const stopBlock = capStop(outcome)
         if (stopBlock !== undefined) return { code: 1, block: stopBlock }
@@ -762,18 +800,18 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
           stopNote = `NOTE attempt ${attempt} changed files outside git; not retrying`
           attempts.push({ harness: next.row.harness, model: next.row.model, outcome })
           finishAttempt()
-          const rendered = renderBlock({
-            job: finalJob,
-            harness: finalHarness,
-            model: finalModel,
-            outcome,
-            attempt,
-            ...(preFallback ? { preFallback } : {}),
-            notes: [...notes, stopNote]
-          })
-          console.log(rendered.block)
-          writeBlock(root, rendered.block)
-          return { code: 1, block: rendered.block }
+          const block = liveBlock(
+            root,
+            {
+              ...(preFallback ? { preFallback } : {}),
+              notes: [...notes, stopNote],
+              failedText: ''
+            },
+            liveValues()
+          )
+          console.log(block)
+          writeBlock(root, block)
+          return { code: 1, block }
         }
       }
       if (
@@ -799,49 +837,16 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
       }
       attempts.push({ harness: next.row.harness, model: next.row.model, outcome })
       finishAttempt()
-      const fallbacks = hops(attempts, finalJob)
-      const rendered = renderBlock({
-        job: finalJob,
-        harness: finalHarness,
-        model: finalModel,
-        outcome,
-        attempt,
-        ...(finalWorktree ? { worktree: finalWorktree } : {}),
-        ...(finalPatch ? { patch: finalPatch } : {}),
-        fallbacks,
-        retries,
-        ...(preFallback ? { preFallback } : {}),
-        notes
-      })
-      console.log(rendered.block)
-      writeBlock(root, rendered.block)
-      return { code: rendered.code, block: rendered.block }
+      const block = liveBlock(root, { ...(preFallback ? { preFallback } : {}), notes }, liveValues())
+      console.log(block)
+      writeBlock(root, block)
+      return { code: outcome === 'ok' ? 0 : 1, block }
     }
   } finally {
     process.removeListener('SIGTERM', onTerm)
     process.removeListener('SIGINT', onInt)
     lease.release()
   }
-}
-
-function hops(
-  attempts: { harness: string; model: string; outcome: string; resetsHHMM?: string }[],
-  job: string
-): Hop[] {
-  void job
-  const out: Hop[] = []
-  for (let i = 0; i + 1 < attempts.length; i++) {
-    if (attempts[i].harness === attempts[i + 1].harness && attempts[i].model === attempts[i + 1].model) continue
-    out.push({
-      fromHarness: attempts[i].harness,
-      fromModel: attempts[i].model,
-      outcome: attempts[i].outcome,
-      ...(attempts[i].resetsHHMM ? { resetsHHMM: attempts[i].resetsHHMM } : {}),
-      toHarness: attempts[i + 1].harness,
-      toModel: attempts[i + 1].model
-    })
-  }
-  return out
 }
 
 function inGit(dir: string): boolean {

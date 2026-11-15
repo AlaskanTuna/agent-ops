@@ -188,16 +188,45 @@ function readCsvFile(path: string): Record<string, string>[] {
 export interface LoadedCatalog {
   rows: CatalogRow[]
   warnings: string[]
+  fatal?: string
+}
+
+const PRIVATE_UNREADABLE = 'REFUSED cannot read ~/.config/agent-ops/catalog.csv'
+
+function readPrivateRows(): { rows: Record<string, string>[]; fatal?: string } {
+  const path = privateCatalogPath()
+  if (!existsSync(path)) return { rows: [] }
+  let text: string
+  try {
+    text = readFileSync(path, 'utf8')
+  } catch {
+    return { rows: [], fatal: PRIVATE_UNREADABLE }
+  }
+  let parsed: Record<string, string>[]
+  try {
+    parsed = parseCsv(text)
+  } catch {
+    return { rows: [], fatal: PRIVATE_UNREADABLE }
+  }
+  if (text.trim() !== '' && parsed.length > 0) {
+    // Every row shares the header's keys, so the first row tells whether the
+    // private file has the key columns at all. Rows with empty values are
+    // still skipped row by row, as before.
+    if (!('harness' in parsed[0]) || !('model' in parsed[0])) return { rows: [], fatal: PRIVATE_UNREADABLE }
+  }
+  return { rows: parsed }
 }
 
 export function loadCatalog(): LoadedCatalog {
   const warnings: string[] = []
   const override = catalogOverridePath()
   const defaultRaw = override ? readCsvFile(override) : parseCsv(bundledCsv)
+  const privateRows = readPrivateRows()
+  if (privateRows.fatal) return { rows: [], warnings, fatal: privateRows.fatal }
   const layers: { raw: Record<string, string>[]; replace: boolean; silent: boolean }[] = [
     { raw: readAutoRows(), replace: true, silent: true },
     { raw: defaultRaw, replace: true, silent: false },
-    { raw: readCsvFile(privateCatalogPath()), replace: false, silent: false }
+    { raw: privateRows.rows, replace: false, silent: false }
   ]
   const rows = new Map<string, { row: CatalogRow; specLayer: number }>()
   const wildcards: { raw: Record<string, string>[]; layer: number }[] = []

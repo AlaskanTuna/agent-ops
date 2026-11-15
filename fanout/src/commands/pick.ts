@@ -4,6 +4,7 @@ import { adapterFor } from '../adapters/index'
 import { chunkClass, rowClass, upstreamClass } from '../dataclass'
 import { estimate, formatUsd } from '../cost'
 import { candidates, resolveModel } from '../pick'
+import { reapStaleLeases } from '../reaper'
 import { registerCommand } from '../cli'
 
 function usage(): string {
@@ -57,8 +58,13 @@ export async function runPick(rawArgs: string[]): Promise<number> {
     return 2
   }
   const briefBytes = statSync(brief).size
-  const { rows, warnings } = loadCatalog()
+  const { rows, warnings, fatal } = loadCatalog()
+  if (fatal) {
+    console.log(fatal)
+    return 3
+  }
   for (const w of warnings) console.error(w)
+  await reapStaleLeases()
   const upstreamOf = (row: { harness: string; model: string }) => adapterFor(row.harness).upstream?.(row.model)
   const actualClass = sawPublic ? 'public' : sawPrivate ? 'private' : chunkClass(dir)
   const noPaid = rawArgs.includes('--no-paid')

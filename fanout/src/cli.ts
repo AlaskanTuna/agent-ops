@@ -13,6 +13,10 @@ async function loadCommands(): Promise<void> {
   await import('./commands/run')
   await import('./commands/wait')
   await import('./commands/report')
+  await import('./commands/status')
+  await import('./commands/ack')
+  await import('./commands/verdict')
+  await import('./commands/hook')
 }
 
 function usage(): string {

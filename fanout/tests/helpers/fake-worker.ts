@@ -59,6 +59,25 @@ async function main(): Promise<number> {
     case 'job_error_ctx':
       process.stderr.write('context_length_exceeded: prompt is too long\n')
       return 1
+    case 'ok_no_usage':
+      writeOutputs()
+      process.stdout.write('done\n')
+      return 0
+    case 'usage_then_sleep': {
+      const pidfile = process.env.FAKE_PIDFILE
+      if (pidfile) {
+        try {
+          appendFileSync(pidfile, `${process.pid}\n`)
+        } catch {
+          // pid tracking never breaks the worker
+        }
+      }
+      process.stdout.write('USAGE in=1000 cached=0 out=200\n')
+      await sleep(sleepS)
+      writeOutputs()
+      process.stdout.write('done\n')
+      return 0
+    }
     case 'ok_no_write':
       process.stdout.write('done\n')
       usage()

@@ -1,7 +1,8 @@
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { readStartTicks } from './exec'
-import { readEvents } from './events'
+import { readEvents, type FanoutEvent } from './events'
+import { leasePath } from './lease'
 import { runDir } from './paths'
 import { LEDGER_WINDOW_MS } from './clock'
 
@@ -99,6 +100,155 @@ export function halfOpenTrialKey(state: State, row: { harness: string; model: st
   if (state.halfOpen.has(`${row.harness}/${row.model}`)) return `${row.harness}/${row.model}`
   if (state.halfOpen.has(`${row.harness}/*`)) return `${row.harness}/*`
   return undefined
+}
+
+export interface ChainHop {
+  fromHarness: string
+  fromModel: string
+  outcome: string
+  resetsHHMM?: string
+  toHarness: string
+  toModel: string
+}
+
+export interface ChainPaid {
+  harness: string
+  model: string
+  billing: 'paid' | 'per_call'
+  estUsd?: number
+  estMc?: number
+  estCalls?: number
+  actualUsd?: number
+  actualMc?: number
+  actualCalls?: number
+  measured: boolean
+}
+
+export interface Chain {
+  root: string
+  finalJob: string
+  firstTs: string
+  finished: boolean
+  running: boolean
+  hops: ChainHop[]
+  paidJobs: ChainPaid[]
+  rerouted?: { expected: string; harness: string; model: string }
+  reported: boolean
+  caller: string
+  session?: string
+}
+
+function localHM(ms: number): string {
+  const tz = process.env.TZ || 'UTC'
+  return new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(
+    new Date(ms)
+  )
+}
+
+function leaseRoots(): Set<string> {
+  const out = new Set<string>()
+  try {
+    for (const f of readdirSync(runDir())) {
+      if (f.endsWith('.lease')) out.add(f.slice(0, -'.lease'.length))
+    }
+  } catch {
+    // missing run dir means nothing is running
+  }
+  return out
+}
+
+/** Group the last 30 days of events into chains keyed by root. */
+export function chains(now: number): Chain[] {
+  const events = readEvents(now - LEDGER_WINDOW_MS)
+  const live = leaseRoots()
+  const starts = new Map<string, FanoutEvent[]>()
+  const ends = new Map<string, FanoutEvent>()
+  const hits = new Map<string, FanoutEvent[]>()
+  const reportedRoots = new Set<string>()
+  for (const e of events) {
+    if (e.event === 'job_start') {
+      const root = String(e.root ?? e.job)
+      const list = starts.get(root) ?? []
+      list.push(e)
+      starts.set(root, list)
+    } else if (e.event === 'job_end') {
+      ends.set(String(e.job), e)
+    } else if (e.event === 'limit_hit') {
+      const key = String(e.job)
+      const list = hits.get(key) ?? []
+      list.push(e)
+      hits.set(key, list)
+    } else if (e.event === 'reported' && e.root !== undefined) {
+      reportedRoots.add(String(e.root))
+    }
+  }
+  const out: Chain[] = []
+  for (const [root, list] of starts) {
+    list.sort((a, b) => String(a.ts).localeCompare(String(b.ts)) || String(a.id).localeCompare(String(b.id)))
+    const running = live.has(root) || existsSync(leasePath(root))
+    const last = list[list.length - 1]
+    const finished = !running && ends.has(String(last.job))
+    const hops: ChainHop[] = []
+    for (let i = 0; i + 1 < list.length; i++) {
+      const from = list[i]
+      const to = list[i + 1]
+      const fh = String(from.harness)
+      const fm = String(from.model)
+      if (fh === String(to.harness) && fm === String(to.model)) continue
+      const end = ends.get(String(from.job))
+      const hop: ChainHop = {
+        fromHarness: fh,
+        fromModel: fm,
+        outcome: String(end?.outcome ?? 'unknown'),
+        toHarness: String(to.harness),
+        toModel: String(to.model)
+      }
+      const hit = (hits.get(String(from.job)) ?? []).find((h) => h.source === 'stated' && h.until !== undefined)
+      if (hit) {
+        const ms = Date.parse(String(hit.until))
+        if (!Number.isNaN(ms)) hop.resetsHHMM = localHM(ms)
+      }
+      hops.push(hop)
+    }
+    const paidJobs: ChainPaid[] = []
+    for (const s of list) {
+      if (s.billing !== 'paid' && s.billing !== 'per_call') continue
+      const end = ends.get(String(s.job))
+      const paid: ChainPaid = {
+        harness: String(s.harness),
+        model: String(s.model),
+        billing: s.billing,
+        measured: end?.cost_source === 'computed'
+      }
+      if (typeof s.cost_est_usd === 'number') paid.estUsd = s.cost_est_usd
+      if (typeof s.cost_est_mc === 'number') paid.estMc = s.cost_est_mc
+      if (typeof s.calls_est === 'number') paid.estCalls = s.calls_est
+      if (typeof end?.cost_usd === 'number') paid.actualUsd = end.cost_usd as number
+      if (typeof end?.cost_mc === 'number') paid.actualMc = end.cost_mc as number
+      if (typeof end?.calls === 'number') paid.actualCalls = end.calls as number
+      paidJobs.push(paid)
+    }
+    const first = list[0]
+    const expected = typeof first.expected === 'string' ? first.expected : undefined
+    const firstKey = `${String(first.harness)}/${String(first.model)}`
+    out.push({
+      root,
+      finalJob: String(last.job),
+      firstTs: String(first.ts),
+      finished,
+      running,
+      hops,
+      paidJobs,
+      ...(expected && expected !== firstKey
+        ? { rerouted: { expected, harness: String(first.harness), model: String(first.model) } }
+        : {}),
+      reported: reportedRoots.has(root),
+      caller: typeof first.caller === 'string' ? first.caller : 'unknown',
+      ...(typeof first.session === 'string' ? { session: first.session } : {})
+    })
+  }
+  out.sort((a, b) => a.firstTs.localeCompare(b.firstTs) || a.root.localeCompare(b.root))
+  return out
 }
 
 export function waitTarget(

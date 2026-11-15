@@ -66,15 +66,38 @@ export function signatureToRegex(sig: string): string {
 }
 
 export function scrubTail(text: string, secrets: string[], brief: string): string {
-  let out = text
+  const lines = text.split('\n').map((line) => (sharesBriefWindow(line, brief) ? '[brief echo removed]' : line))
+  let out = lines.join('\n')
   for (const s of secrets) {
-    if (s) out = out.split(s).join('[redacted]')
+    if (s) out = out.split(s).join('[secret]')
   }
   out = out
-    .replace(/Bearer [\w.\-~+/]+=*/g, 'Bearer [redacted]')
-    .replace(/\bAIza[\w-]{30,}\b/g, '[redacted]')
-    .replace(/\bsk-[\w-]{16,}\b/g, '[redacted]')
-    .replace(/\b((?:api[_-]?key|token|secret|password)\s*[=:]\s*["']?)[\w.\-]{8,}/gi, '$1[redacted]')
-  if (brief) out = out.split(brief).join('[brief]')
+    .replace(/Bearer\s+[\w.\-~+/=]+/g, '[secret]')
+    .replace(/\bAIza[\w-]{30,}\b/g, '[secret]')
+    .replace(/\bsk-[\w-]{16,}\b/g, '[secret]')
+    .replace(/\bghp_[\w-]{16,}/g, '[secret]')
+    .replace(/\bxox[\w-]{16,}/g, '[secret]')
+    .replace(/\b((?:api[_-]?key|token|secret|password)\s*[=:]\s*["']?)[\w.\-]{8,}/gi, '$1[secret]')
   return out.slice(-400)
+}
+
+// A line that shares a 24-character window with the brief echoed the brief back.
+function sharesBriefWindow(line: string, brief: string): boolean {
+  if (!brief || brief.length < 24 || line.length < 24) return false
+  for (let i = 0; i + 24 <= line.length; i++) {
+    if (brief.includes(line.slice(i, i + 24))) return true
+  }
+  return false
+}
+
+// Scrub a short human-written note (verdict --note): mask secret shapes and cut length.
+export function scrubNote(note: string): string {
+  const out = note
+    .replace(/Bearer\s+[\w.\-~+/=]+/g, '[secret]')
+    .replace(/\bAIza[\w-]{30,}\b/g, '[secret]')
+    .replace(/\bsk-[\w-]{16,}\b/g, '[secret]')
+    .replace(/\bghp_[\w-]{16,}/g, '[secret]')
+    .replace(/\bxox[\w-]{16,}/g, '[secret]')
+    .replace(/\b((?:api[_-]?key|token|secret|password)\s*[=:]\s*["']?)[\w.\-]{8,}/gi, '$1[secret]')
+  return out.slice(0, 200)
 }

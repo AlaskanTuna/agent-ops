@@ -111,14 +111,16 @@ test('run options reach the detached chain', async () => {
   expect(starts[0]).toMatchObject({ model: 'f2-a', tier: 2 })
 }, 30000)
 
-test('a block that is missing', async () => {
+test('wait rebuilds a missing block from the ledger', async () => {
   const sb = sandbox()
   sb.script({ 'fake/f1-a': ['ok'] })
   const d = await sb.fanout([...RUN(sb), '--detach'])
   const id = d.stdout.trim().split('\n')[0].slice(4)
-  await waitFor(() => !existsSync(join(sb.home, 'run', `${id}.lease`)), 15000)
+  const r1 = await sb.fanout(['wait', id])
+  expect(r1.code).toBe(0)
+  expect(r1.stdout.split('\n')[0]).toMatch(/^FANOUT job=[0-9A-HJKMNP-TV-Z]{26} .* outcome=ok attempt=1$/)
   unlinkSync(join(sb.home, 'logs', `${id}.block`))
-  const r = await sb.fanout(['wait', id])
-  expect(r.code).toBe(1)
-  expect(r.stdout.trim()).toBe(`NOTE no result block for ${id}`)
+  const r2 = await sb.fanout(['wait', id])
+  expect(r2.code).toBe(0)
+  expect(r2.stdout).toBe(r1.stdout)
 }, 30000)

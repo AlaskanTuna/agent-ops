@@ -62,6 +62,20 @@ export class FakeAdapter implements Adapter {
     }
   }
 
+  get proxyBacked(): boolean {
+    const list = (process.env.FAKE_PROXY_BACKED ?? '').split(',').map((s) => s.trim())
+    return list.includes(this.name)
+  }
+
+  async measure(w: { startMs: number; endMs: number; route: string; overlapped: boolean }) {
+    void w.startMs
+    void w.endMs
+    void w.route
+    if (w.overlapped) return 'unmeasured' as const
+    const n = Number(process.env.FAKE_CALLS)
+    if (!Number.isFinite(n) || n < 0) return 'unmeasured' as const
+    return { calls: Math.floor(n) }
+  }
   classify(_r: RunOutput, _nowMs: number): Classified {
     return { outcome: 'unknown' }
   }

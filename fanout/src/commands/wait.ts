@@ -4,6 +4,8 @@ import { registerCommand } from '../cli'
 import { dataDir } from '../paths'
 import { leasePath } from '../lease'
 import { chainExitCode, findChain } from '../run'
+import { reapStaleLeases } from '../reaper'
+import { renderBlock } from '../result'
 
 function usage(): string {
   return 'usage: fanout wait <job> [--max <s>]'
@@ -46,6 +48,7 @@ export async function runWait(rawArgs: string[]): Promise<number> {
     console.error(`unknown job ${job}`)
     return 2
   }
+  await reapStaleLeases()
   const { root } = chain
   const envMax = Number(process.env.FANOUT_WAIT_MAX_S)
   const maxS = max ?? (Number.isFinite(envMax) && envMax >= 0 ? envMax : 540)
@@ -54,8 +57,13 @@ export async function runWait(rawArgs: string[]): Promise<number> {
     if (!existsSync(leasePath(root))) {
       const blockPath = join(dataDir(), 'logs', `${root}.block`)
       if (!existsSync(blockPath)) {
-        console.log(`NOTE no result block for ${root}`)
-        return 1
+        const rebuilt = renderBlock(root)
+        if (rebuilt === undefined) {
+          console.log(`NOTE no result block for ${root}`)
+          return 1
+        }
+        console.log(rebuilt)
+        return chainExitCode(root)
       }
       console.log(readFileSync(blockPath, 'utf8'))
       return chainExitCode(root)

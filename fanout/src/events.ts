@@ -6,19 +6,58 @@ import {
   openSync,
   readdirSync,
   readFileSync,
+  unlinkSync,
+  writeFileSync,
   writeSync
 } from 'node:fs'
 import { join } from 'node:path'
-import { dataDir } from './paths'
+import { dataDir, usingFallbackDir } from './paths'
 
 export type FanoutEvent = Record<string, unknown>
+
+let warnedUnwritable = false
+
+export function warnUnwritable(): void {
+  if (warnedUnwritable) return
+  warnedUnwritable = true
+  try {
+    console.error('WARN ledger unwritable; events not recorded')
+  } catch {
+    // warnings never break a run
+  }
+}
 
 function monthFile(ts: string): string {
   const month = new Date(ts).toISOString().slice(0, 7)
   return join(dataDir(), 'events', `${month}.jsonl`)
 }
 
-export function appendEvent(event: FanoutEvent): void {
+/** True when a fresh probe file can be created in the events directory. */
+export function ledgerWritable(): boolean {
+  if (usingFallbackDir()) return false
+  try {
+    const dir = join(dataDir(), 'events')
+    mkdirSync(dir, { recursive: true, mode: 0o700 })
+    // Unique per process: concurrent runs must never share a probe file.
+    const probe = join(dir, `.writetest-${process.pid}-${Math.floor(Math.random() * 1e9)}`)
+    writeFileSync(probe, '1', { mode: 0o600 })
+    try {
+      unlinkSync(probe)
+    } catch {
+      // the writability answer is already known; cleanup is best effort
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Append one event. Returns false when the ledger is unwritable (fail open). */
+export function appendEvent(event: FanoutEvent): boolean {
+  if (usingFallbackDir()) {
+    warnUnwritable()
+    return false
+  }
   try {
     const ts = typeof event.ts === 'string' ? event.ts : new Date().toISOString()
     const file = monthFile(ts)
@@ -32,13 +71,16 @@ export function appendEvent(event: FanoutEvent): void {
     } finally {
       closeSync(fd)
     }
+    return true
   } catch (err) {
+    warnUnwritable()
     try {
       mkdirSync(dataDir(), { recursive: true, mode: 0o700 })
       appendFileSync(join(dataDir(), 'errors.log'), `${new Date().toISOString()} appendEvent: ${String(err)}\n`)
     } catch {
       // never throws
     }
+    return false
   }
 }
 
