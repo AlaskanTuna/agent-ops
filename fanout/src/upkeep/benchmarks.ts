@@ -99,6 +99,8 @@ function itemNumbers(item: unknown): AaNumbers {
   return out
 }
 
+const EFFORT_SUFFIX = /-(minimal|low|medium|high|xhigh|max|non-reasoning|reasoning)$/
+
 function indexRows(
   rows: CatalogRow[],
   extra: { harness: string; model: string; aaSlug?: string; aliases: string[] }[]
@@ -178,6 +180,7 @@ export async function runBenchmarks(ctx: StepCtx): Promise<string> {
   const { rows } = loadCatalog()
   const { bySlug, byName } = indexRows(rows, readRawAutoRows())
   const matched = new Map<string, AaNumbers>()
+  const exactHit = new Set<string>()
   let version: number | undefined
   let pages = 0
   try {
@@ -192,11 +195,27 @@ export async function runBenchmarks(ctx: StepCtx): Promise<string> {
       }
       for (const raw of body.data) {
         const item = itemNumbers(raw)
-        const targets =
+        const exact =
           (item.slug !== undefined ? bySlug.get(item.slug) : undefined) ??
           (item.name !== undefined ? byName.get(normalizeBenchmarkName(item.name)) : undefined)
-        if (!targets) continue
-        for (const t of targets) matched.set(t, item)
+        if (exact) {
+          for (const t of exact) {
+            matched.set(t, item)
+            exactHit.add(t)
+          }
+          continue
+        }
+        // AA lists one row per reasoning effort ("gpt-6-1-sol-xhigh"); the
+        // catalog names the model once. Match on the slug without its effort
+        // suffix and keep the strongest variant, unless an exact row matched.
+        const base = item.slug?.replace(EFFORT_SUFFIX, '')
+        const variants = base && base !== item.slug ? byName.get(normalizeBenchmarkName(base)) : undefined
+        if (!variants) continue
+        for (const t of variants) {
+          if (exactHit.has(t)) continue
+          const prev = matched.get(t)
+          if (!prev || (item.intel ?? -1) > (prev.intel ?? -1)) matched.set(t, item)
+        }
       }
       const pagination =
         body.pagination !== null && typeof body.pagination === 'object' && !Array.isArray(body.pagination)

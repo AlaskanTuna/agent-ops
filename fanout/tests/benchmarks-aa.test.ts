@@ -333,3 +333,32 @@ test('the README credits the source', () => {
   const text = readFileSync(resolve(import.meta.dir, '../../README.md'), 'utf8')
   expect(text).toContain('[Artificial Analysis](https://artificialanalysis.ai/)')
 })
+
+test('effort-variant slugs match the model and keep the strongest variant', async () => {
+  const sb = sandbox().at(NOW)
+  const key = fakeKey()
+  const seen: SeenRequest[] = []
+  const server = serve(
+    {
+      '1': aaPage(
+        5,
+        [
+          aaItem('f1-c-low', 'F1-C (Low)', 20.5, 0.2, 0.9),
+          aaItem('f1-c-xhigh', 'F1-C (Xhigh)', 33.4, 0.2, 0.9),
+          aaItem('f1-c-medium', 'F1-C (Medium)', 27.0, 0.2, 0.9)
+        ],
+        1,
+        false
+      )
+    },
+    seen,
+    key
+  )
+  try {
+    const r = await sb.fanout(['upkeep', '--only', 'benchmarks'], { env: upkeepEnv(sb, portOf(server), key) })
+    expect(r.code).toBe(0)
+    expect(readBenchmarksDoc(sb).values['fake2/f1-c']).toMatchObject({ aa_intel: 33.4 })
+  } finally {
+    server.stop()
+  }
+}, 30000)
