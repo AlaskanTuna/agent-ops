@@ -1,0 +1,1 @@
+opencode run failed: Insufficient account funds
