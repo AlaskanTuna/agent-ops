@@ -2,10 +2,23 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Adapter, BuildInput, BuiltCommand, Classified, ModelInfo, Preflight, RunOutput, Usage } from './types'
 import { SkipCandidate } from './types'
+import type { Rule } from '../classify'
+
+import fakeJson from '../../tests/fixtures/patterns/fake.json'
+
+export function fakeRules(): Rule[] {
+  try {
+    const rules = (fakeJson as { rules: Rule[] }).rules
+    return Array.isArray(rules) ? rules : []
+  } catch {
+    return []
+  }
+}
 
 export class FakeAdapter implements Adapter {
   readonly name: string
   envAllow = ['FAKE_*']
+  readonly rules: Rule[] = fakeRules()
 
   constructor(harness: string) {
     this.name = harness
@@ -58,6 +71,8 @@ export class FakeAdapter implements Adapter {
   }
 
   async preflight(_o?: { quick?: boolean }): Promise<Preflight> {
+    if (process.env.FAKE_MISSING === this.name)
+      return { ok: false, outcome: 'model_unavailable', detail: 'CLI missing' }
     return { ok: true }
   }
 }
