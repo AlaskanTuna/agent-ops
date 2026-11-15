@@ -2,7 +2,7 @@
 set -euo pipefail
 # Empty-context guard only: the hook is keyed to the session, so a session
 # started in $HOME still owes its report. Fail open: never block the session.
-[ -n "$CLAUDE_PROJECT_DIR" ] || exit 0
+[ -n "${CLAUDE_PROJECT_DIR:-}" ] || exit 0
 REAL="$(readlink -f "${BASH_SOURCE[0]}")"
 ROOT="$(dirname "$REAL")"
 if command -v bun >/dev/null 2>&1; then

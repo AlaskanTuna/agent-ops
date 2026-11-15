@@ -210,6 +210,18 @@ test('the empty-context guard', async () => {
   expect(h.stdout).toBe('')
 }, 30000)
 
+test('an unset project dir exits 0 silently (set -u safe)', async () => {
+  const sb = sandbox().at('2026-11-15T01:00:00Z')
+  sb.catalogPrivate(NO_PAID)
+  sb.script({ 'fake/f1-a': ['rate_limited'] })
+  await sb.fanout(RUN(sb))
+  for (const wrapper of [STOP_HOOK, SESSION_HOOK]) {
+    const h = await pipeHook(sb, wrapper, stopPayload('S1', false), undefined)
+    expect(h.code).toBe(0)
+    expect(h.stdout).toBe('')
+  }
+}, 30000)
+
 test('a session started in HOME is still checked', async () => {
   const sb = sandbox().at('2026-11-15T01:00:00Z')
   sb.catalogPrivate(NO_PAID)
