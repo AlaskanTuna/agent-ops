@@ -1,0 +1,32 @@
+{
+  "rules": [
+    {
+      "id": "agy-timeout",
+      "re": "\\[agy\\] print timeout after",
+      "outcome": "timeout",
+      "onExit0": true
+    },
+    {
+      "id": "agy-invalid-model",
+      "re": "invalid model selection|has no \".+\" effort|is not recognized",
+      "outcome": "model_unavailable"
+    },
+    {
+      "id": "agy-cancel",
+      "re": "context canceled",
+      "outcome": "worker_error"
+    },
+    {
+      "id": "agy-quota",
+      "re": "quota|RESOURCE_EXHAUSTED|exhausted your capacity",
+      "outcome": "quota_exhausted",
+      "scope": "model"
+    },
+    {
+      "id": "agy-quota-mined",
+      "re": "error: individual quota reached\\. please upgrade your subscription to increase your limits\\. resets in \\d[\\d:.,]*h\\d[\\d:.,]*m\\d[\\d:.,]*s\\.",
+      "outcome": "quota_exhausted",
+      "scope": "model"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import type { Adapter, BuildInput, BuiltCommand, Classified, RunOutput, Usage } from './types'
 import { SkipCandidate } from './types'
 import { CodexAdapter } from './codex'
+import { AgyAdapter } from './agy'
 import { FakeAdapter } from './fake'
 
 class UnwiredAdapter implements Adapter {
@@ -37,6 +38,9 @@ export function adapterFor(harness: string): Adapter {
   }
   if (harness === 'codex') {
     return new CodexAdapter()
+  }
+  if (harness === 'agy') {
+    return new AgyAdapter()
   }
   return new UnwiredAdapter(harness)
 }
