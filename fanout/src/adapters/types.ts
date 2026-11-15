@@ -49,6 +49,7 @@ export interface Classified {
   until?: number
   cooldownS?: number
   pattern?: string
+  match?: string
 }
 
 export interface Usage {

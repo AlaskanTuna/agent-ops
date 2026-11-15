@@ -19,6 +19,19 @@ export function formatLocalHM(ms: number): string {
   )
 }
 
+export interface Retry {
+  harness: string
+  model: string
+  outcome: string
+}
+
+export interface PreFallback {
+  expected: string
+  reason: string
+  toHarness: string
+  toModel: string
+}
+
 export function renderBlock(o: {
   job: string
   harness: string
@@ -28,15 +41,25 @@ export function renderBlock(o: {
   worktree?: string
   patch?: string
   fallbacks?: Hop[]
+  retries?: Retry[]
+  preFallback?: PreFallback
   notes?: string[]
   failed?: string
 }): ChainResult {
   const lines = [`FANOUT job=${o.job} harness=${o.harness} model=${o.model} outcome=${o.outcome} attempt=${o.attempt}`]
+  if (o.preFallback) {
+    lines.push(
+      `FALLBACK ${o.preFallback.expected} not started (${o.preFallback.reason}) -> ${o.preFallback.toHarness}/${o.preFallback.toModel}. Tell the user, then run: fanout ack ${o.job}`
+    )
+  }
   for (const h of o.fallbacks ?? []) {
     const resets = h.resetsHHMM ? ` (resets ${h.resetsHHMM})` : ''
     lines.push(
       `FALLBACK ${h.fromHarness}/${h.fromModel} ${h.outcome}${resets} -> ${h.toHarness}/${h.toModel}. Tell the user, then run: fanout ack ${o.job}`
     )
+  }
+  for (const r of o.retries ?? []) {
+    lines.push(`RETRY ${r.harness}/${r.model} ${r.outcome}; retried once on the same model`)
   }
   for (const n of o.notes ?? []) lines.push(n)
   if (o.worktree) lines.push(`WORKTREE=${o.worktree}`)

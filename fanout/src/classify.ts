@@ -129,6 +129,12 @@ export function classify(adapter: Adapter, out: RunOutput, nowMs: number): Class
     if (!re.test(text)) continue
     const scope = rule.scope ?? defaultScope(rule.outcome)
     const result: Classified = { outcome: rule.outcome, scope, pattern: rule.id }
+    for (const line of text.split('\n')) {
+      if (re.test(line)) {
+        result.match = line.slice(0, 120)
+        break
+      }
+    }
     if (rule.cooldownS !== undefined) result.cooldownS = rule.cooldownS
     const until = parseReset(text, nowMs)
     if (until !== undefined) result.until = until
