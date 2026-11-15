@@ -4,6 +4,7 @@ import { CodexAdapter } from './codex'
 import { AgyAdapter } from './agy'
 import { FakeAdapter } from './fake'
 import { MetaAdapter } from './meta'
+import { OpenCodeAdapter } from './opencode'
 
 class UnwiredAdapter implements Adapter {
   readonly name: string
@@ -45,6 +46,9 @@ export function adapterFor(harness: string): Adapter {
   }
   if (harness === 'meta') {
     return new MetaAdapter()
+  }
+  if (harness === 'opencode') {
+    return new OpenCodeAdapter()
   }
   return new UnwiredAdapter(harness)
 }

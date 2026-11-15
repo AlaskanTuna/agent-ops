@@ -1,0 +1,30 @@
+{
+  "rules": [
+    {
+      "id": "opencode-funds",
+      "re": "Insufficient account funds",
+      "outcome": "credits_exhausted"
+    },
+    {
+      "id": "opencode-deprecated",
+      "re": "has been deprecated|Model is unavailable",
+      "outcome": "model_unavailable"
+    },
+    {
+      "id": "opencode-go-required",
+      "re": "An active OpenCode Go subscription is required",
+      "outcome": "auth_error"
+    },
+    {
+      "id": "opencode-free-tier",
+      "re": "free tier can only be used from within OpenCode",
+      "outcome": "worker_error"
+    },
+    {
+      "id": "opencode-auto-reject",
+      "re": "permission requested: external_directory.*auto-rejecting",
+      "outcome": "worker_error",
+      "onExit0": true
+    }
+  ]
+}
