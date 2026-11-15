@@ -84,17 +84,19 @@ function registerTestSteps(): boolean {
 }
 
 async function registerRealSteps(): Promise<void> {
-  const modules: [string, string, string][] = [
-    ['../upkeep/doctor', 'registerDoctorStep', 'doctor'],
-    ['../upkeep/discover', 'registerDiscoverStep', 'discover'],
-    ['../upkeep/benchmarks', 'registerBenchmarksStep', 'benchmarks'],
-    ['../upkeep/smoke', 'registerSmokeStep', 'smoke'],
-    ['../upkeep/patterns', 'registerPatternsStep', 'patterns'],
-    ['../upkeep/housekeeping', 'registerHousekeepingStep', 'housekeeping']
+  // Literal import specifiers: the single-file build only bundles imports it can
+  // see, and a variable path failed to load in the installed copy.
+  const modules: [() => Promise<unknown>, string, string][] = [
+    [() => import('../upkeep/doctor'), 'registerDoctorStep', 'doctor'],
+    [() => import('../upkeep/discover'), 'registerDiscoverStep', 'discover'],
+    [() => import('../upkeep/benchmarks'), 'registerBenchmarksStep', 'benchmarks'],
+    [() => import('../upkeep/smoke'), 'registerSmokeStep', 'smoke'],
+    [() => import('../upkeep/patterns'), 'registerPatternsStep', 'patterns'],
+    [() => import('../upkeep/housekeeping'), 'registerHousekeepingStep', 'housekeeping']
   ]
-  for (const [path, fn, step] of modules) {
+  for (const [load, fn, step] of modules) {
     try {
-      const mod = (await import(path)) as Record<string, (() => void) | undefined>
+      const mod = (await load()) as Record<string, (() => void) | undefined>
       mod[fn]?.()
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err)

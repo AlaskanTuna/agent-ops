@@ -1,3 +1,4 @@
+import denylistJson from '../../patterns/denylist.json'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
@@ -46,7 +47,7 @@ function writeLearnedRules(rules: LearnedRule[]): void {
 function readDenylist(): RegExp[] {
   const out: RegExp[] = []
   try {
-    const parsed = JSON.parse(readFileSync(new URL('../../patterns/denylist.json', import.meta.url), 'utf8')) as {
+    const parsed = denylistJson as {
       lines?: unknown
     }
     if (!Array.isArray(parsed.lines)) return out

@@ -114,6 +114,26 @@ test('the built copy runs without the checkout', () => {
   )
 }, 120000)
 
+test('the built copy loads every upkeep step and the bundled data', () => {
+  const out = tmp()
+  const r = runBuild(['--out', out, '--allow-dirty'], ROOT)
+  expect(r.code).toBe(0)
+  const dest = /^BUILD \S+ -> (\S+)$/m.exec(r.stdout.trim())![1]
+  const copy = join(tmp(), 'copy')
+  cpSync(dest, copy, { recursive: true })
+  const env = { ...cleanEnv(out), AA_API_KEY: '', FANOUT_NO_LAZY: '1' }
+  for (const step of ['housekeeping', 'patterns', 'benchmarks']) {
+    const u = Bun.spawnSync([join(copy, 'fanout'), 'upkeep', '--only', step], { env, stdout: 'pipe', stderr: 'pipe' })
+    const text = u.stdout.toString() + u.stderr.toString()
+    expect(text, step).not.toContain('failed to load')
+    expect(text, step).not.toContain('Cannot find module')
+  }
+  const st = Bun.spawnSync([join(copy, 'fanout'), 'status'], { env, stdout: 'pipe', stderr: 'pipe' })
+  expect(st.stdout.toString()).not.toContain('failed to load')
+  // the benchmark seed is bundled: the AA-less status names the seed as the source
+  expect(st.stdout.toString()).toContain('values from the bundled seed')
+}, 120000)
+
 test('no checkout path is baked into the bundle', () => {
   const out = tmp()
   const r = runBuild(['--out', out, '--allow-dirty'], ROOT)

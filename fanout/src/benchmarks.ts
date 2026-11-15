@@ -1,3 +1,4 @@
+import seedJson from '../catalog/benchmarks.seed.json'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CatalogRow } from './catalog'
@@ -11,10 +12,6 @@ export function normalizeBenchmarkName(name: string): string {
   const slash = s.indexOf('/')
   if (slash >= 0) s = s.slice(slash + 1)
   return s.replace(/[^a-z0-9]/g, '')
-}
-
-function seedPath(): string {
-  return new URL('../catalog/benchmarks.seed.json', import.meta.url).pathname
 }
 
 function copyNumbers(src: unknown): Record<string, number> {
@@ -96,7 +93,7 @@ export function matchRowKeys(rows: CatalogRow[], name: string): string[] {
 export function readBenchmarks(): BenchmarkMap {
   const out: BenchmarkMap = {}
   try {
-    const seed = JSON.parse(readFileSync(seedPath(), 'utf8')) as Record<string, unknown>
+    const seed = seedJson as Record<string, unknown>
     if (seed !== null && typeof seed === 'object' && !Array.isArray(seed)) {
       for (const [k, v] of Object.entries(seed)) {
         const m = copyNumbers(v)

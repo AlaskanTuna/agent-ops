@@ -137,7 +137,7 @@ test('a missing key is skipped and reported', async () => {
     expect(upkeepSteps(sb)[0]).toMatchObject({ step: 'benchmarks', status: 'skipped', detail: 'no AA_API_KEY' })
     expect(seen).toHaveLength(0)
     const s = await sb.fanout(['status', '--brief'])
-    expect(s.stdout).toContain('BENCH aa skipped: AA_API_KEY missing (values from none)')
+    expect(s.stdout).toContain('BENCH aa skipped: AA_API_KEY missing (values from the bundled seed)')
     const run = await sb.fanout(['run', '--brief', sb.brief(), '--dir', sb.repo, '--kind', 'transcribe'])
     expect(run.code).toBe(0)
   } finally {

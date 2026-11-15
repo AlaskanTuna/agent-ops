@@ -1,3 +1,4 @@
+import ignoreText from '../../catalog/discovery-ignore.txt' with { type: 'text' }
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import { adapterFor } from '../adapters/index'
@@ -92,7 +93,7 @@ function defaultDataClass(harness: string, model: string): 'any' | 'public-only'
 function readIgnore(): RegExp[] {
   const out: RegExp[] = []
   try {
-    const text = readFileSync(new URL('../../catalog/discovery-ignore.txt', import.meta.url), 'utf8')
+    const text = ignoreText
     for (const line of text.split('\n')) {
       const t = line.trim()
       if (!t || t.startsWith('#')) continue

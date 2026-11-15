@@ -176,7 +176,7 @@ export function benchLines(now: number): string[] {
   const last = attempts[attempts.length - 1]
   const doc = readBenchmarksDoc()
   const stamp = typeof doc?.refreshed_at === 'string' ? doc.refreshed_at : undefined
-  const from = stamp && /^\d{4}-\d{2}-\d{2}/.test(stamp) ? stamp.slice(0, 10) : 'none'
+  const from = stamp && /^\d{4}-\d{2}-\d{2}/.test(stamp) ? stamp.slice(0, 10) : 'the bundled seed'
   const lines: string[] = []
   if (last && last.status !== 'ok') {
     const detail = String(last.detail ?? '')
