@@ -4,6 +4,8 @@ import { CodexAdapter } from './codex'
 import { AgyAdapter } from './agy'
 import { FakeAdapter } from './fake'
 import { MetaAdapter } from './meta'
+import { RiverAdapter } from './river'
+import { ClaudeFanoutAdapter } from './claude-fanout'
 
 class UnwiredAdapter implements Adapter {
   readonly name: string
@@ -45,6 +47,12 @@ export function adapterFor(harness: string): Adapter {
   }
   if (harness === 'meta') {
     return new MetaAdapter()
+  }
+  if (harness === 'river') {
+    return new RiverAdapter()
+  }
+  if (harness === 'claude-fanout') {
+    return new ClaudeFanoutAdapter()
   }
   return new UnwiredAdapter(harness)
 }

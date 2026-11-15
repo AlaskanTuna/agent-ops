@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { nowMs } from './clock'
 import { dataDir } from './paths'
 import type { Adapter } from './adapters/types'
-import type { CatalogRow, DataClass } from './catalog'
+import { loadCatalog, type CatalogRow, type DataClass } from './catalog'
 
 export type ChunkClass = 'public' | 'private'
 
@@ -145,6 +145,25 @@ export function upstreamClass(upstream: string | undefined): DataClass {
 export function rowClass(row: CatalogRow, adapter: Adapter): DataClass {
   if (row.dataClass === 'public-only') return 'public-only'
   const upstream = adapter.upstream?.(row.model)
+  if (row.harness === 'claude-fanout') {
+    // The proxy hides the vendor behind the alias: an upstream that is not
+    // the upstream cell of an any catalog row (a config edit pointing at an
+    // unreviewed model, an unknown OpenRouter row, an unreadable config) is
+    // public-only, even when the catalog cell says any. An alias missing from
+    // the openrouter block has no upstream at all; build() refuses it with a
+    // NOTE before anything starts, so it stays routable here.
+    if (upstream !== undefined && !isKnownAnyUpstream(upstream)) return 'public-only'
+  }
   if (upstreamClass(upstream) === 'public-only') return 'public-only'
   return 'any'
+}
+
+// True when some any catalog row carries this upstream cell. Used by the
+// claude-fanout adapter to decide whether a configured upstream is reviewed.
+export function isKnownAnyUpstream(upstream: string): boolean {
+  try {
+    return loadCatalog().rows.some((r) => r.dataClass === 'any' && r.upstream === upstream)
+  } catch {
+    return false
+  }
 }

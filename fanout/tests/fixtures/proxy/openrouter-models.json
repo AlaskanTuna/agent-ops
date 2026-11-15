@@ -1,0 +1,6 @@
+{
+  "data": [
+    { "id": "qwen/qwen3.7-flash", "pricing": { "prompt": "0.00000003", "completion": "0.00000013" } },
+    { "id": "acme/mystery-model", "pricing": {} }
+  ]
+}

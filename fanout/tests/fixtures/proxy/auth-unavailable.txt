@@ -1,0 +1,2 @@
+synthetic fixture: not real worker output
+auth_unavailable: the proxy has no upstream credentials for this route; reconnect the provider and retry

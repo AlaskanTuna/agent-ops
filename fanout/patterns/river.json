@@ -1,0 +1,42 @@
+{
+  "rules": [
+    {
+      "id": "river-402",
+      "re": "HTTP 402|api_error_status[\"']?\\s*[:=]\\s*402|credits? exhausted|insufficient.*credit",
+      "outcome": "credits_exhausted",
+      "scope": "account"
+    },
+    {
+      "id": "river-concurrency",
+      "re": "model_concurrency",
+      "outcome": "rate_limited",
+      "cooldownS": 30
+    },
+    {
+      "id": "river-404",
+      "re": "\\b404\\b|model_not_found|model .*not found",
+      "outcome": "model_unavailable"
+    },
+    {
+      "id": "river-auth",
+      "re": "HTTP 40[13]\\b|api_error_status[\"']?\\s*[:=]\\s*40[13]\\b|unauthorized|forbidden|auth_unavailable|invalid api key",
+      "outcome": "auth_error",
+      "scope": "account"
+    },
+    {
+      "id": "river-context",
+      "re": "context_length_exceeded|context length",
+      "outcome": "job_error"
+    },
+    {
+      "id": "river-413-422",
+      "re": "\\b41[32]\\b",
+      "outcome": "job_error"
+    },
+    {
+      "id": "river-dump",
+      "re": "dumped core|core dumped",
+      "outcome": "worker_error"
+    }
+  ]
+}

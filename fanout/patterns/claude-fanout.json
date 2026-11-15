@@ -1,0 +1,15 @@
+{
+  "rules": [
+    {
+      "id": "cf-auth-unavailable",
+      "re": "auth_unavailable",
+      "outcome": "auth_error",
+      "scope": "account"
+    },
+    {
+      "id": "cf-api-error",
+      "re": "terminal_reason[\"']?\\s*[:=]\\s*[\"']?api_error",
+      "outcome": "worker_error"
+    }
+  ]
+}
