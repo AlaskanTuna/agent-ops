@@ -1,0 +1,8 @@
+[2026-11-15 09:00:01] [trace-a] [span-a] [gin_logger.go:101] 200 | 12.4ms | 127.0.0.1 | POST "/v1/messages"
+[2026-11-15 09:00:02] [trace-b] [span-b] [gin_logger.go:102] 200 | 9.1ms | 127.0.0.1 | POST "/v1/messages"
+[2026-11-15 09:00:03] [trace-c] [span-c] [gin_logger.go:103] 200 | 11.0ms | 127.0.0.1 | POST "/v1/messages"
+[2026-11-15 09:00:04] [trace-d] [span-d] [gin_logger.go:104] 200 | 8.7ms | 127.0.0.1 | POST "/v1/messages"
+[2026-11-15 09:00:05] [trace-e] [span-e] [gin_logger.go:105] 200 | 10.2ms | 127.0.0.1 | POST "/v1/messages"
+[2026-11-15 09:00:06] [trace-f] [span-f] [gin_logger.go:106] 200 | 9.9ms | 127.0.0.1 | POST "/v1/messages"
+[2026-11-15 08:00:00] [trace-g] [span-g] [gin_logger.go:107] 200 | 7.3ms | 127.0.0.1 | POST "/v1/messages"
+[2026-11-15 09:00:03] [trace-h] [span-h] [gin_logger.go:108] 200 | 2.1ms | 127.0.0.1 | POST "/v1/messages/count_tokens"
