@@ -1,0 +1,15 @@
+{
+  "rules": [
+    {
+      "id": "fake-special",
+      "re": "special-quota",
+      "outcome": "quota_exhausted"
+    },
+    {
+      "id": "fake-hidden",
+      "re": "FAKE_HIDDEN_FAILURE",
+      "outcome": "worker_error",
+      "onExit0": true
+    }
+  ]
+}

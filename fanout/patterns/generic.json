@@ -1,0 +1,36 @@
+{
+  "rules": [
+    {
+      "id": "gen-429",
+      "re": "\\b429\\b|rate.?limit|too many requests",
+      "outcome": "rate_limited"
+    },
+    {
+      "id": "gen-quota",
+      "re": "quota|usage limit|exhausted your|RESOURCE_EXHAUSTED",
+      "outcome": "quota_exhausted"
+    },
+    {
+      "id": "gen-credits",
+      "re": "insufficient (account )?funds|credit|\\b402\\b|payment",
+      "outcome": "credits_exhausted",
+      "scope": "account"
+    },
+    {
+      "id": "gen-auth",
+      "re": "\\b401\\b|\\b403\\b|unauthorized|not logged in|auth_unavailable|invalid api key",
+      "outcome": "auth_error"
+    },
+    {
+      "id": "gen-model",
+      "re": "model .* (not found|is not recognized|unavailable|deprecated)|invalid model",
+      "outcome": "model_unavailable"
+    },
+    {
+      "id": "gen-overload",
+      "re": "overloaded|model_concurrency|\\b503\\b",
+      "outcome": "rate_limited",
+      "cooldownS": 30
+    }
+  ]
+}

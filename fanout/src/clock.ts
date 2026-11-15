@@ -1,3 +1,6 @@
+export const DAY_MS = 24 * 3600 * 1000
+export const LEDGER_WINDOW_MS = 30 * DAY_MS
+
 export function nowMs(): number {
   const forced = process.env.FANOUT_NOW
   if (forced) {

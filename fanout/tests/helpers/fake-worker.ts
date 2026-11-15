@@ -58,6 +58,16 @@ async function main(): Promise<number> {
     case 'custom_error':
       process.stderr.write(`${process.env.FAKE_STDERR ?? ''}\n`)
       return 1
+    case 'rate_limited_soon':
+      process.stderr.write('HTTP 429 try again in 10 minutes\n')
+      return 1
+    case 'stdout_limit':
+      process.stdout.write('HTTP 429 Too Many Requests\n')
+      return 1
+    case 'ok_hidden_failure':
+      process.stdout.write('FAKE_HIDDEN_FAILURE\n')
+      usage()
+      return 0
     case 'timeout': {
       const pidfile = process.env.FAKE_PIDFILE
       if (pidfile) {
@@ -76,6 +86,33 @@ async function main(): Promise<number> {
       }
       process.stderr.write(`${brief}\nkey=${process.env.FAKE_SECRET ?? ''}\n`)
       return 1
+    }
+    case 'print_env': {
+      const out = process.env.FAKE_OUT
+      if (out)
+        writeFileSync(
+          out,
+          Object.entries(process.env)
+            .map(([k, v]) => `${k}=${v}`)
+            .join('\n') + '\n'
+        )
+      process.stdout.write('done\n')
+      usage()
+      return 0
+    }
+    case 'nested_run': {
+      const cli = process.env.FAKE_CLI ?? ''
+      const brief = process.env.FAKE_BRIEF ?? ''
+      const out = process.env.FAKE_OUT
+      const p = Bun.spawnSync(['bun', cli, 'run', '--brief', brief, '--dir', '.', '--kind', 'transcribe'], {
+        env: { ...process.env },
+        stdout: 'pipe',
+        stderr: 'pipe'
+      })
+      if (out) writeFileSync(out, p.stdout.toString())
+      process.stdout.write('done\n')
+      usage()
+      return 0
     }
     case 'writes_then_limit':
       writeFileSync('partial.txt', 'partial\n')

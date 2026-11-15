@@ -3,13 +3,45 @@ export interface ChainResult {
   block: string
 }
 
+export interface Hop {
+  fromHarness: string
+  fromModel: string
+  outcome: string
+  resetsHHMM?: string
+  toHarness: string
+  toModel: string
+}
+
+export function formatLocalHM(ms: number): string {
+  const tz = process.env.TZ || 'UTC'
+  return new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(
+    new Date(ms)
+  )
+}
+
 export function renderBlock(o: {
   job: string
   harness: string
   model: string
   outcome: string
   attempt: number
+  worktree?: string
+  patch?: string
+  fallbacks?: Hop[]
+  notes?: string[]
+  failed?: string
 }): ChainResult {
-  const line = `FANOUT job=${o.job} harness=${o.harness} model=${o.model} outcome=${o.outcome} attempt=${o.attempt}`
-  return { code: o.outcome === 'ok' ? 0 : 1, block: line }
+  const lines = [`FANOUT job=${o.job} harness=${o.harness} model=${o.model} outcome=${o.outcome} attempt=${o.attempt}`]
+  for (const h of o.fallbacks ?? []) {
+    const resets = h.resetsHHMM ? ` (resets ${h.resetsHHMM})` : ''
+    lines.push(
+      `FALLBACK ${h.fromHarness}/${h.fromModel} ${h.outcome}${resets} -> ${h.toHarness}/${h.toModel}. Tell the user, then run: fanout ack ${o.job}`
+    )
+  }
+  for (const n of o.notes ?? []) lines.push(n)
+  if (o.worktree) lines.push(`WORKTREE=${o.worktree}`)
+  if (o.patch) lines.push(`PATCH=${o.patch}`)
+  if (o.failed) lines.push(o.failed)
+  const block = lines.join('\n')
+  return { code: o.outcome === 'ok' ? 0 : 1, block }
 }

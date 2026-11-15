@@ -1,6 +1,8 @@
 import { type Billing, type CatalogRow, kindInfo } from './catalog'
 import { upstreamClass } from './dataclass'
 import { compareRows } from './rank'
+import { nowMs } from './clock'
+import { isCooling, readState } from './state'
 
 export interface PickInput {
   kind: string
@@ -25,6 +27,7 @@ export function billingRank(b: Billing): number {
 
 export function candidates(rows: CatalogRow[], input: PickInput): Candidate[] {
   const startTier = input.startTier ?? kindInfo(input.kind).tier
+  const state = readState(nowMs())
   const eligible = rows.filter((row) => {
     if (row.status !== 'active') return false
     if (row.tier < startTier) return false
@@ -34,6 +37,7 @@ export function candidates(rows: CatalogRow[], input: PickInput): Candidate[] {
       return false
     }
     if (input.noPaid && (row.billing === 'paid' || row.billing === 'per_call')) return false
+    if (isCooling(state, row)) return false
     return true
   })
   const pref = input.harness
@@ -48,4 +52,12 @@ export function candidates(rows: CatalogRow[], input: PickInput): Candidate[] {
     }
   }
   return withEffort
+}
+
+export function nextCandidate(
+  ordered: Candidate[],
+  tried: Set<string>,
+  skippedHarness: Set<string>
+): Candidate | undefined {
+  return ordered.find((c) => !tried.has(`${c.row.harness}/${c.row.model}`) && !skippedHarness.has(c.row.harness))
 }
