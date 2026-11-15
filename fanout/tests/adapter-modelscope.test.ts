@@ -9,7 +9,7 @@ import { renderBlock } from '../src/result'
 
 const HEADER =
   'harness,model,efforts,tier,billing,price_in,price_cached,price_out,price_call,min_brief_bytes,data_class,status,family,aliases,aa_slug,climb,upstream,note'
-const MS_ROW = 'modelscope,Qwen/Qwen3.8-27B,,2,per_call,,,,1,6000,any,active,Qwen/Qwen3.8-27B,,,,1 MC per call,'
+const MS_ROW = 'modelscope,Qwen/Qwen3.8-27B,,1,per_call,,,,1,6000,any,active,Qwen/Qwen3.8-27B,,,,1 MC per call,'
 const MS_NOT_LIVE_ROW = 'modelscope,ms-not-live,,1,per_call,,,,2,0,any,active,ms-not-live,,,,,'
 const FAKE_ROW = 'fake,f1-a,medium|low,1,subscription,,,,,0,any,active,f1-a,,,,,'
 
@@ -22,7 +22,7 @@ function proxyLogFixture(): string {
 }
 
 function startProxy(routes: { id: string; owned_by: string }[]) {
-  return Bun.serve({
+  const server = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,
     fetch: (req) => {
@@ -31,6 +31,8 @@ function startProxy(routes: { id: string; owned_by: string }[]) {
       return new Response('not found', { status: 404 })
     }
   })
+  if (server.port === undefined) throw new Error('the fake proxy did not bind a port')
+  return { port: server.port, stop: () => server.stop() }
 }
 
 function liveRoutes() {
@@ -139,7 +141,7 @@ test('the dry-run argv has no effort and the right tools', async () => {
         '--harness',
         'modelscope',
         '--model',
-        'Qwen/Qwen3.8-27B',
+        'modelscope/Qwen/Qwen3.8-27B',
         '--brief',
         sb.brief('Rename foo to bar in a.txt, nothing else.', 7000),
         '--dir',
@@ -173,7 +175,7 @@ test('the stub environment is clean and pinned', async () => {
         '--harness',
         'modelscope',
         '--model',
-        'Qwen/Qwen3.8-27B',
+        'modelscope/Qwen/Qwen3.8-27B',
         '--brief',
         sb.brief('Rename foo to bar in a.txt, nothing else.', 7000),
         '--dir',
@@ -218,7 +220,7 @@ test('stdin starts with the working-directory sentence', async () => {
         '--harness',
         'modelscope',
         '--model',
-        'Qwen/Qwen3.8-27B',
+        'modelscope/Qwen/Qwen3.8-27B',
         '--brief',
         sb.brief(briefText, 7000),
         '--dir',
@@ -265,7 +267,7 @@ test('a bad routing config is refused without echoing it', async () => {
           '--harness',
           'modelscope',
           '--model',
-          'Qwen/Qwen3.8-27B',
+          'modelscope/Qwen/Qwen3.8-27B',
           '--brief',
           sb.brief('Rename foo to bar in a.txt, nothing else.', 7000),
           '--dir',
@@ -290,7 +292,7 @@ test('a model that is not a live route is skipped, never rerouted', async () => 
     const sb = sandbox()
     const dir = writeProxyDir(server.port)
     stubbed(sb, successResult(), '0')
-    sb.catalog(`${HEADER}\n${MS_NOT_LIVE_ROW}\n${MS_ROW}\n${FAKE_ROW}\n`)
+    sb.catalog(`${HEADER}\n${MS_NOT_LIVE_ROW}\n${FAKE_ROW}\n`)
     const r = await sb.fanout(
       [
         'run',
@@ -410,7 +412,7 @@ test('exit 0 without a success result is a worker error', async () => {
         '--harness',
         'modelscope',
         '--model',
-        'Qwen/Qwen3.8-27B',
+        'modelscope/Qwen/Qwen3.8-27B',
         '--brief',
         sb.brief('Rename foo to bar in a.txt, nothing else.', 7000),
         '--dir',
@@ -442,7 +444,7 @@ test('a turn cap is a job error', async () => {
         '--harness',
         'modelscope',
         '--model',
-        'Qwen/Qwen3.8-27B',
+        'modelscope/Qwen/Qwen3.8-27B',
         '--brief',
         sb.brief('Rename foo to bar in a.txt, nothing else.', 7000),
         '--dir',
@@ -468,7 +470,7 @@ test('denials are reported', () => {
   const block = renderBlock({
     job: 'J',
     harness: 'modelscope',
-    model: 'Qwen/Qwen3.8-27B',
+    model: 'modelscope/Qwen/Qwen3.8-27B',
     outcome: 'ok',
     attempt: 1,
     denials: denials(stdout)

@@ -6,6 +6,7 @@ import { FakeAdapter } from './fake'
 import { MetaAdapter } from './meta'
 import { RiverAdapter } from './river'
 import { ClaudeFanoutAdapter } from './claude-fanout'
+import { ModelScopeAdapter } from './modelscope'
 import { OpenCodeAdapter } from './opencode'
 
 class UnwiredAdapter implements Adapter {
@@ -54,6 +55,9 @@ export function adapterFor(harness: string): Adapter {
   }
   if (harness === 'claude-fanout') {
     return new ClaudeFanoutAdapter()
+  }
+  if (harness === 'modelscope') {
+    return new ModelScopeAdapter()
   }
   if (harness === 'opencode') {
     return new OpenCodeAdapter()

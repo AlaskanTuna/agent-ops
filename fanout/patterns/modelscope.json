@@ -1,0 +1,66 @@
+{
+  "rules": [
+    {
+      "id": "ms-max-turns",
+      "re": "error_max_turns",
+      "outcome": "job_error",
+      "onExit0": true
+    },
+    {
+      "id": "ms-429",
+      "re": "\\b429\\b|rate.?limit|too many requests",
+      "outcome": "rate_limited"
+    },
+    {
+      "id": "ms-overload",
+      "re": "overloaded|model_concurrency|\\b503\\b",
+      "outcome": "rate_limited",
+      "cooldownS": 30
+    },
+    {
+      "id": "ms-quota",
+      "re": "Magicubes|quota|usage limit|exhausted your|RESOURCE_EXHAUSTED",
+      "outcome": "quota_exhausted",
+      "scope": "account"
+    },
+    {
+      "id": "ms-credits",
+      "re": "insufficient (account )?funds|credit|\\b402\\b|payment",
+      "outcome": "credits_exhausted",
+      "scope": "account"
+    },
+    {
+      "id": "ms-auth",
+      "re": "\\b401\\b|\\b403\\b|unauthorized|not logged in|auth_unavailable|invalid api key",
+      "outcome": "auth_error",
+      "scope": "account"
+    },
+    {
+      "id": "ms-not-found",
+      "re": "model .* (not found|is not recognized|unavailable|deprecated)|invalid model",
+      "outcome": "model_unavailable"
+    },
+    {
+      "id": "ms-job",
+      "re": "context.length|context_length_exceeded|prompt is too long|\\b413\\b|\\b422\\b|max.turns",
+      "outcome": "job_error"
+    },
+    {
+      "id": "ms-worker",
+      "re": "context canceled|worker crashed|segmentation fault",
+      "outcome": "worker_error"
+    },
+    {
+      "id": "ms-is-error",
+      "re": "\"is_error\"\\s*:\\s*true",
+      "outcome": "worker_error",
+      "onExit0": true
+    },
+    {
+      "id": "ms-no-success",
+      "re": "^(?![\\s\\S]*\"subtype\"\\s*:\\s*\"success\")[\\s\\S]*$",
+      "outcome": "worker_error",
+      "onExit0": true
+    }
+  ]
+}
