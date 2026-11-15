@@ -512,3 +512,79 @@ export function paidTrialKeys(rows: CatalogRow[], learned: LearnedState): string
     .map((r) => `${r.harness}/${r.model}`)
     .sort()
 }
+
+export interface UserScore {
+  key: string
+  taskKind: string
+  jobs: number
+  rate: number
+  costPerAccepted: number
+}
+
+const USER_SCORE_MIN_JOBS = 20
+export const USER_FLOOR = 0.5
+
+/**
+ * Per (task kind, model) user scores from the judged lines of
+ * learned/state.jsonl. The last line per job counts. A pair with fewer than
+ * 20 judged jobs has no score: benchmarks still decide it.
+ */
+export function readUserScores(): Map<string, UserScore> {
+  const byJob = new Map<string, { key: string; taskKind: string; accepted: boolean; cost: number }>()
+  for (const l of learnedLines('state.jsonl')) {
+    if (l.kind !== 'judged' || typeof l.key !== 'string' || typeof l.job !== 'string') continue
+    if (typeof l.task_kind !== 'string' || typeof l.accepted !== 'boolean') continue
+    byJob.set(l.job, {
+      key: l.key,
+      taskKind: l.task_kind,
+      accepted: l.accepted,
+      cost: typeof l.cost_usd === 'number' && Number.isFinite(l.cost_usd) ? l.cost_usd : 0
+    })
+  }
+  const groups = new Map<string, { accepted: number; cost: number; jobs: number }>()
+  for (const j of byJob.values()) {
+    const gk = `${j.taskKind}\n${j.key}`
+    const g = groups.get(gk) ?? { accepted: 0, cost: 0, jobs: 0 }
+    g.jobs += 1
+    if (j.accepted) {
+      g.accepted += 1
+      g.cost += j.cost
+    }
+    groups.set(gk, g)
+  }
+  const out = new Map<string, UserScore>()
+  for (const [gk, g] of groups) {
+    if (g.jobs < USER_SCORE_MIN_JOBS) continue
+    const nl = gk.indexOf('\n')
+    out.set(gk, {
+      taskKind: gk.slice(0, nl),
+      key: gk.slice(nl + 1),
+      jobs: g.jobs,
+      rate: g.accepted / g.jobs,
+      costPerAccepted: g.accepted > 0 ? g.cost / g.accepted : Infinity
+    })
+  }
+  return out
+}
+
+export function userScoreFor(key: string, taskKind: string): UserScore | undefined {
+  return readUserScores().get(`${taskKind}\n${key}`)
+}
+
+/**
+ * Band key placing the user's own results around the benchmark key:
+ * 0 for a success rate of at least 0.5, 1 for no score, 2 below 0.5.
+ * Within bands 0 and 2 rows sort by rate, then cost per accepted job.
+ * Returns 0 when the band does not decide.
+ */
+export function userBand(ka: string, kb: string, kind: string): number {
+  const sa = userScoreFor(ka, kind)
+  const sb = userScoreFor(kb, kind)
+  const ba = !sa ? 1 : sa.rate >= USER_FLOOR ? 0 : 2
+  const bb = !sb ? 1 : sb.rate >= USER_FLOOR ? 0 : 2
+  if (ba !== bb) return ba - bb
+  if (ba === 1 || !sa || !sb) return 0
+  if (sa.rate !== sb.rate) return sb.rate - sa.rate
+  if (sa.costPerAccepted === sb.costPerAccepted) return 0
+  return sa.costPerAccepted < sb.costPerAccepted ? -1 : 1
+}

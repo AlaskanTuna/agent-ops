@@ -2,7 +2,8 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { formatUsd } from './cost'
 import { loadCatalog } from './catalog'
-import { DAY_MS, nowMs } from './clock'
+import { readBenchmarksDoc } from './benchmarks'
+import { DAY_MS, LEDGER_WINDOW_MS, nowMs } from './clock'
 import { readEvents } from './events'
 import { runDir } from './paths'
 import { chains, paidTrialKeys, readLearned, readState, smokeSummary, type Chain } from './state'
@@ -83,6 +84,7 @@ export function briefLines(now: number): string[] {
     lines.push(`UNREPORTED ${chain.finalJob} ${unreportedSummary(chain)} (run: fanout ack ${chain.finalJob})`)
   }
   lines.push(...upkeepLines(now))
+  lines.push(...benchLines(now))
   lines.push(...discoveryLines())
   lines.push(...smokeStatusLines(now))
   if (lines.length === 0) return ['fanout: ok']
@@ -164,4 +166,29 @@ export function discoveryLines(): string[] {
 
 export function statusNow(): number {
   return nowMs()
+}
+
+/** BENCH lines for the Artificial Analysis refresh: a missed key, a failed attempt, or a stale snapshot. */
+export function benchLines(now: number): string[] {
+  const attempts = readEvents(now - LEDGER_WINDOW_MS)
+    .filter((e) => e.event === 'upkeep' && e.step === 'benchmarks')
+    .sort((a, b) => String(a.ts).localeCompare(String(b.ts)) || String(a.id).localeCompare(String(b.id)))
+  const last = attempts[attempts.length - 1]
+  const doc = readBenchmarksDoc()
+  const stamp = typeof doc?.refreshed_at === 'string' ? doc.refreshed_at : undefined
+  const from = stamp && /^\d{4}-\d{2}-\d{2}/.test(stamp) ? stamp.slice(0, 10) : 'none'
+  const lines: string[] = []
+  if (last && last.status !== 'ok') {
+    const detail = String(last.detail ?? '')
+    if (last.status === 'skipped' && detail === 'no AA_API_KEY') {
+      lines.push(`BENCH aa skipped: AA_API_KEY missing (values from ${from})`)
+    } else if (last.status === 'failed') {
+      lines.push(`BENCH aa failed: ${detail} (values from ${from})`)
+    }
+  }
+  const ms = stamp ? Date.parse(stamp) : NaN
+  if (Number.isFinite(ms) && now - ms > 3 * DAY_MS) {
+    lines.push(`BENCH aa stale: last refresh ${Math.floor((now - ms) / DAY_MS)} days ago`)
+  }
+  return lines
 }

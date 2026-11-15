@@ -14,6 +14,9 @@ export interface StepCtx {
 
 export type StepFn = (ctx: StepCtx) => Promise<string | void>
 
+/** Throw to record the step as skipped instead of ok or failed. Skips never count as failures. */
+export class StepSkipped extends Error {}
+
 export interface StepDef {
   name: string
   fn: StepFn
@@ -89,9 +92,14 @@ export async function runUpkeepSteps(names: string[], ctx: StepCtx): Promise<{ f
       const out = await withLimit(step.fn, ctx)
       if (typeof out === 'string' && out !== '') detail = out
     } catch (err) {
-      status = 'failed'
-      failed += 1
-      detail = err instanceof Error ? err.message : String(err)
+      if (err instanceof StepSkipped) {
+        status = 'skipped'
+        detail = err.message
+      } else {
+        status = 'failed'
+        failed += 1
+        detail = err instanceof Error ? err.message : String(err)
+      }
     }
     ends.push(nowMs())
     appendEvent({
