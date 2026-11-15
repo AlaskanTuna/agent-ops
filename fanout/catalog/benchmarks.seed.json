@@ -1,0 +1,56 @@
+{
+  "codex/gpt-6-luna": {
+    "aa_intel": 28.0,
+    "frontiercode2": 21.9,
+    "arena_webdev": 1577.0
+  },
+  "meta/muse-ember-1.0": {
+    "aa_intel": 36.0,
+    "arena_webdev": 1609.0
+  },
+  "river/deepseek-v4.1-flash-river": {
+    "aa_intel": 33.0,
+    "frontiercode2": 19.3,
+    "arena_webdev": 1664.0
+  },
+  "river/glm-5.3-flash-river": {
+    "aa_intel": 28.0,
+    "arena_webdev": 1609.0
+  },
+  "meta/muse-spark-1.3-contributor": {
+    "arena_webdev": 1620.0
+  },
+  "meta/muse-spark-1.3": {
+    "arena_webdev": 1620.0
+  },
+  "agy/gemini-3.8-flash": {
+    "aa_intel": 31.0,
+    "arena_webdev": 1583.0
+  },
+  "meta/muse-wonder-1.0": {
+    "aa_intel": 44.0,
+    "frontiercode2": 24.3,
+    "arena_webdev": 1647.0
+  },
+  "agy/gemini-4-argon": {
+    "aa_intel": 50.0,
+    "frontiercode2": 26.3,
+    "arena_webdev": 1681.0
+  },
+  "agy/gemini-4-hydrogen": {
+    "aa_intel": 54.0,
+    "frontiercode2": 38.2,
+    "arena_webdev": 1704.0
+  },
+  "codex/gpt-6.1-sol": {
+    "aa_intel": 55.0,
+    "frontiercode2": 39.0,
+    "arena_webdev": 1743.0
+  },
+  "codex/gpt-6-astra": {
+    "aa_intel": 57.0,
+    "frontiercode2": 42.8,
+    "arena_webdev": 1764.0
+  },
+  "_source": "Public snapshots 2026-11-12: Artificial Analysis (AA Intelligence Index), Arena WebDev, BenchLM FrontierCode 2.0. Refreshed by upkeep (AA) and fanout benchmarks import."
+}

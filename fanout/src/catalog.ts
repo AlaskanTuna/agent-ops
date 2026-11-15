@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { parseCsv } from './csv'
+import { readBenchmarks, type BenchmarkMap } from './benchmarks'
 import type { Billing } from './adapters/types'
 import { autoCatalogPath, catalogOverridePath, privateCatalogPath } from './paths'
 // @ts-expect-error bun text import: inlined at bundle time, no type declarations
@@ -220,6 +221,15 @@ function readPrivateRows(): { rows: Record<string, string>[]; fatal?: string } {
 
 export function loadCatalog(): LoadedCatalog {
   const warnings: string[] = []
+  // Artificial Analysis prices fill only the missing prices of auto rows,
+  // before validation, so a newly priced auto row becomes routable.
+  // A default or private price is never overridden.
+  let bench: BenchmarkMap = {}
+  try {
+    bench = readBenchmarks()
+  } catch {
+    bench = {}
+  }
   const override = catalogOverridePath()
   const defaultRaw = override ? readCsvFile(override) : parseCsv(bundledCsv)
   const privateRows = readPrivateRows()
@@ -241,7 +251,18 @@ export function loadCatalog(): LoadedCatalog {
       }
       const key = `${r.harness}/${r.model}`
       if (replace) {
-        const parsed = parseRow(fullRow(r))
+        let raw = r
+        if (layer === 0) {
+          const b = bench[`${r.harness}/${r.model}`]
+          if (b) {
+            if ((r.price_in ?? '') === '' && typeof b.aa_price_in === 'number')
+              raw = { ...raw, price_in: String(b.aa_price_in) }
+            if ((r.price_out ?? '') === '' && typeof b.aa_price_out === 'number') {
+              raw = { ...raw, price_out: String(b.aa_price_out) }
+            }
+          }
+        }
+        const parsed = parseRow(fullRow(raw))
         if (!parsed.row) {
           if (!silent) warnings.push(`WARN catalog row skipped: ${parsed.error}`)
           continue

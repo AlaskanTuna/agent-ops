@@ -19,6 +19,7 @@ async function loadCommands(): Promise<void> {
   await import('./commands/verdict')
   await import('./commands/hook')
   await import('./commands/upkeep')
+  await import('./commands/benchmarks')
   await import('./commands/doctor')
 }
 

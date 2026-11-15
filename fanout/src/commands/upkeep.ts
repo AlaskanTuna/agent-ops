@@ -87,6 +87,7 @@ async function registerRealSteps(): Promise<void> {
   const modules: [string, string, string][] = [
     ['../upkeep/doctor', 'registerDoctorStep', 'doctor'],
     ['../upkeep/discover', 'registerDiscoverStep', 'discover'],
+    ['../upkeep/benchmarks', 'registerBenchmarksStep', 'benchmarks'],
     ['../upkeep/smoke', 'registerSmokeStep', 'smoke'],
     ['../upkeep/patterns', 'registerPatternsStep', 'patterns'],
     ['../upkeep/housekeeping', 'registerHousekeepingStep', 'housekeeping']
