@@ -166,3 +166,19 @@ test('the mined fixtures classify as recorded', async () => {
     }
   ])
 }, 30000)
+
+// agy ignores its keyring login when it sees an SSH session, so a fanout run
+// in an SSH shell must not pass the SSH_* variables to agy models.
+test('agy models runs without the SSH session variables', async () => {
+  const sb = sandbox().at('2026-11-15T01:00:00Z')
+  sb.catalog(SMALL)
+  sb.bin(
+    'agy',
+    '#!/bin/sh\n' +
+      'if [ -n "$SSH_CONNECTION$SSH_CLIENT$SSH_TTY" ]; then echo "Error: Please sign in"; exit 1; fi\n' +
+      'printf "gemini-4-hydrogen-medium\\tGemini 4 Hydrogen (Medium)\\n"\n'
+  )
+  const env = { SSH_CONNECTION: '100.0.0.1 1 100.0.0.2 22', SSH_CLIENT: '100.0.0.1 1 22', SSH_TTY: '/dev/pts/9' }
+  const r = await sb.fanout(['doctor'], { env })
+  expect(r.stdout).toMatch(/PASS adapter-agy/)
+})

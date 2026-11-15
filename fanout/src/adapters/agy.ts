@@ -38,7 +38,7 @@ export class AgyAdapter implements Adapter {
   }
 
   async listModels(): Promise<ModelInfo[]> {
-    const p = Bun.spawnSync(['agy', 'models'], { stdout: 'pipe', stderr: 'ignore' })
+    const p = Bun.spawnSync(['agy', 'models'], { stdout: 'pipe', stderr: 'ignore', env: agyEnv() })
     if (p.exitCode !== 0) return []
     const groups = new Map<string, string[]>()
     for (const token of p.stdout.toString().split(/\s+/)) {
@@ -57,8 +57,15 @@ export class AgyAdapter implements Adapter {
   async preflight(o?: { quick?: boolean }): Promise<Preflight> {
     if (!Bun.which('agy')) return { ok: false, outcome: 'model_unavailable', detail: 'agy not found on PATH' }
     if (o?.quick) return { ok: true }
-    const p = Bun.spawnSync(['agy', 'models'], { stdout: 'ignore', stderr: 'ignore' })
+    const p = Bun.spawnSync(['agy', 'models'], { stdout: 'ignore', stderr: 'ignore', env: agyEnv() })
     if (p.exitCode === 0) return { ok: true }
     return { ok: false, outcome: 'model_unavailable', detail: 'agy models did not exit 0' }
   }
+}
+
+// agy ignores its keyring login when it sees an SSH session and reports
+// "Please sign in", so drop the SSH session variables for agy models.
+function agyEnv(): Record<string, string | undefined> {
+  const { SSH_CONNECTION: _c, SSH_CLIENT: _l, SSH_TTY: _t, ...rest } = process.env
+  return rest
 }
