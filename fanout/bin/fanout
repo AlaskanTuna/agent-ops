@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+REAL="$(readlink -f "${BASH_SOURCE[0]}")"
+ROOT="$(dirname "$REAL")"
+if command -v bun >/dev/null 2>&1; then
+  BUN="$(command -v bun)"
+elif [ -x "$HOME/.bun/bin/bun" ]; then
+  BUN="$HOME/.bun/bin/bun"
+else
+  echo "fanout: bun not found (tried PATH and \$HOME/.bun/bin/bun)" >&2
+  exit 2
+fi
+if [ -f "$ROOT/fanout.js" ]; then
+  exec "$BUN" "$ROOT/fanout.js" "$@"
+else
+  exec "$BUN" "$ROOT/../src/cli.ts" "$@"
+fi

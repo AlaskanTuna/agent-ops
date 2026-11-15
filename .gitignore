@@ -94,3 +94,19 @@ graphify-out/*
 *.duckdb
 *.jsonl
 events/
+
+# fanout
+*.log
+*.lease
+*.patch
+*.block
+status.json
+learned/
+worktrees/
+patches/
+smoke/
+secrets.env
+*.pem
+*.key
+fanout/.tmp/
+fanout/dist/

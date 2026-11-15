@@ -1,0 +1,13 @@
+{
+  "transcribe": { "tier": 1, "writes": true, "prior": [100000, 200000, 10000] },
+  "reformat": { "tier": 1, "writes": true, "prior": [100000, 200000, 10000] },
+  "rename": { "tier": 1, "writes": true, "prior": [100000, 200000, 10000] },
+  "summarize": { "tier": 1, "writes": true, "prior": [100000, 200000, 10000] },
+  "extract": { "tier": 1, "writes": true, "prior": [30000, 0, 3000] },
+  "smoke": { "tier": 1, "writes": true, "prior": [30000, 0, 3000] },
+  "inventory": { "tier": 1, "writes": false, "prior": [30000, 0, 3000] },
+  "edit": { "tier": 2, "writes": true, "prior": [300000, 600000, 30000] },
+  "refactor": { "tier": 2, "writes": true, "prior": [300000, 600000, 30000] },
+  "test": { "tier": 2, "writes": true, "prior": [300000, 600000, 30000] },
+  "issue": { "tier": 2, "writes": true, "prior": [300000, 600000, 30000] }
+}

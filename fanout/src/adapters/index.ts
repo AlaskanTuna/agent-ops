@@ -1,0 +1,38 @@
+import type { Adapter, BuildInput, BuiltCommand, Classified, RunOutput, Usage } from './types'
+import { SkipCandidate } from './types'
+import { FakeAdapter } from './fake'
+
+class UnwiredAdapter implements Adapter {
+  readonly name: string
+
+  constructor(harness: string) {
+    this.name = harness
+  }
+
+  build(_i: BuildInput): BuiltCommand {
+    throw new SkipCandidate(`${this.name}: no adapter wired yet`)
+  }
+
+  classify(_r: RunOutput, _nowMs: number): Classified {
+    return { outcome: 'unknown' }
+  }
+
+  usage(_stdout: string): Usage | undefined {
+    return undefined
+  }
+
+  async listModels() {
+    return []
+  }
+
+  async preflight() {
+    return { ok: true } as const
+  }
+}
+
+export function adapterFor(harness: string): Adapter {
+  if (harness === 'fake' || harness === 'fake2' || harness === 'fake3') {
+    return new FakeAdapter(harness)
+  }
+  return new UnwiredAdapter(harness)
+}

@@ -1,0 +1,13 @@
+harness,model,efforts,tier,billing,price_in,price_cached,price_out,price_call,min_brief_bytes,data_class,status,family,aliases,aa_slug,climb,upstream,note
+fake,f1-a,medium|low,1,subscription,,,,,0,any,active,f1-a,,,,,
+fake,f1-b,medium|low,1,subscription,,,,,0,any,active,f1-b,,,,,
+fake2,f1-c,medium|low,1,subscription,,,,,0,any,active,f1-c,,,,,
+fake,f2-a,medium|high,2,subscription,,,,,0,any,active,f2-a,,,f2-a@high|f3-z@high,,
+fake2,f2-b,medium|low,2,subscription,,,,,0,any,active,f2-b,,,,,
+fake,f3-z,high,3,subscription,,,,,0,any,active,f3-z,,,,,
+fake3,f3-a,,3,subscription,,,,,0,any,active,f3-a,,,,,
+fake2,f1-paid,medium|low,1,paid,1.00,0.10,2.00,,0,any,active,fam-paid,,,,,
+fake3,f1-paid-b,,1,paid,0.50,0.05,1.00,,0,any,active,fam-b,,,,,
+fake3,f1-pub,,1,free,,,,,0,public-only,active,f1-pub,,,,,
+fake3,f1-call,,1,per_call,,,,2,6000,any,active,f1-call,,,,,
+fake3,f1-trial,,1,free,,,,,0,any,trial,f1-trial,,,,,

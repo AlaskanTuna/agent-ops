@@ -1,0 +1,4 @@
+harness,model,efforts,tier,billing,price_in,price_cached,price_out,price_call,min_brief_bytes,data_class,status,family,aliases,aa_slug,climb,upstream,note
+# Copy this file to ~/.config/agent-ops/catalog.csv and uncomment what you need.
+# agy,gemini-4-argon,high|medium|low,3,subscription,,,,,0,any,active,gemini-4-argon,,,,,
+# codex,gpt-6-luna,,,,,,,,,retired,,,,,,,
