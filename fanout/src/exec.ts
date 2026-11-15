@@ -21,6 +21,8 @@ export interface RunProcessOptions {
   timeoutS: number
   logOut: string
   logErr: string
+  stdinPath?: string
+  stdinText?: string
   onSpawn?: (info: SpawnInfo) => void
 }
 
@@ -116,12 +118,34 @@ export async function runProcess(argv: string[], o: RunProcessOptions): Promise<
     } catch {
       // log failures never break a run
     }
+    // The brief reaches the worker on stdin when the adapter asks for it: a file is passed as the fd itself,
+    // text is written to a pipe. Otherwise stdin is closed.
+    let inFd = -1
+    if (o.stdinPath !== undefined) {
+      try {
+        inFd = openSync(o.stdinPath, 'r')
+      } catch {
+        inFd = -1
+      }
+    }
+    const stdinMode = inFd >= 0 ? inFd : o.stdinText !== undefined ? 'pipe' : 'ignore'
     const child = spawn(argv[0], argv.slice(1), {
       cwd: o.cwd,
       env: o.env,
       detached: process.platform !== 'win32',
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: [stdinMode, 'pipe', 'pipe']
     })
+    if (inFd >= 0) {
+      try {
+        closeSync(inFd)
+      } catch {
+        // ignore
+      }
+    }
+    if (o.stdinText !== undefined && child.stdin) {
+      child.stdin.on('error', () => {})
+      child.stdin.end(o.stdinText)
+    }
     let stdout = ''
     let stderr = ''
     let timedOut = false

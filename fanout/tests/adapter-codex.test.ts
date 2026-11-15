@@ -19,7 +19,7 @@ const RUN = (sb: ReturnType<typeof sandbox>) => [
   '--dir',
   sb.repo,
   '--kind',
-  'transcribe'
+  'inventory'
 ]
 
 function codexStub(sb: ReturnType<typeof sandbox>, fixture: string, exit: number, extra = ''): void {
@@ -114,7 +114,7 @@ test('the brief goes to stdin and usage is summed', async () => {
   sb.catalog(CODEX_CATALOG)
   codexStub(sb, FIX('ok.txt'), 0)
   const brief = sb.brief('Rename foo in a.txt to bar, nothing else.')
-  const r = await sb.fanout(['run', '--brief', brief, '--dir', sb.repo, '--kind', 'transcribe'])
+  const r = await sb.fanout(['run', '--brief', brief, '--dir', sb.repo, '--kind', 'inventory'])
   expect(r.code).toBe(0)
   const lines = r.stdout.split('\n')
   expect(lines[0]).toMatch(/^FANOUT job=\w{26} harness=codex model=gpt-6-luna outcome=ok attempt=1$/)
@@ -169,7 +169,8 @@ test('an error event on a clean exit is a worker error', async () => {
   sb.catalog(CODEX_CATALOG)
   codexStub(sb, FIX('error-event.txt'), 0)
   const r = await sb.fanout(RUN(sb))
-  expect(r.code).toBe(1)
+  // a worker error falls back to the next candidate and is reported
+  expect(r.stdout).toContain('FALLBACK codex/gpt-6-luna worker_error ->')
   const end = sb.ledger().find((e) => e.event === 'job_end')
   expect(end).toMatchObject({ outcome: 'worker_error', pattern: 'codex-error-event' })
 }, 30000)

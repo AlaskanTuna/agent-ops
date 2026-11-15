@@ -1,3 +1,5 @@
+import type { BuiltCommand } from './adapters/types'
+import { SkipCandidate } from './adapters/types'
 import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs'
@@ -202,6 +204,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
   const inList = (row: CatalogRow): boolean =>
     list.some((c) => c.row.harness === row.harness && c.row.model === row.model)
   let preFallback: PreFallback | undefined
+  const pendingSkips: { from: string; reason: string }[] = []
   if (expectedKey) {
     let reason: string | undefined
     if (!expectedRow) reason = 'not in the catalog'
@@ -452,6 +455,43 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
       }
       const startTs = nowMs()
       const ws = openWorkspace(dir, root, job, attempt)
+      // An adapter can refuse a candidate before anything starts (brief too large for argv, missing key):
+      // note it and move on without a job_start, so nothing is spent and nothing is reported as run.
+      let built: BuiltCommand
+      try {
+        built = adapter.build({
+          model: next.row.model,
+          effort: next.effort,
+          cwd: ws.cwd,
+          briefPath: o.brief,
+          job,
+          outDir: join(dataDir(), 'logs'),
+          timeoutS,
+          maxTurns,
+          bypass: o.bypass ?? false,
+          allow: o.allow ?? []
+        })
+      } catch (err) {
+        if (!(err instanceof SkipCandidate)) throw err
+        const prefix = `${next.row.harness}: `
+        const why = err.reason.startsWith(prefix) ? err.reason.slice(prefix.length) : err.reason
+        notes.push(`NOTE ${prefix}${why}`)
+        tried.add(`${next.row.harness}/${next.row.model}`)
+        pendingSkips.push({ from: `${next.row.harness}/${next.row.model}`, reason: why })
+        pendingReason = 'fallback'
+        if (ws.mode === 'git') ws.finish(job)
+        attempt -= 1
+        if (activeTrial) {
+          releaseTrial(activeTrial)
+          activeTrial = undefined
+        }
+        continue
+      }
+      for (const sk of pendingSkips.splice(0)) {
+        notes.push(
+          `FALLBACK ${sk.from} not started (${sk.reason}) -> ${next.row.harness}/${next.row.model}. Tell the user, then run: fanout ack ${root}`
+        )
+      }
       appendEvent({
         v: 1,
         ts: nowIso(),
@@ -468,7 +508,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
         workspace: ws.mode === 'git' ? ws.worktree : dir,
         ...(ws.baseSha ? { base_sha: ws.baseSha } : {}),
         attempt,
-        reason: attempt === 1 ? (o.escalateFrom ? 'escalate' : 'initial') : (pendingReason ?? 'fallback'),
+        reason: pendingReason ?? (attempt === 1 ? (o.escalateFrom ? 'escalate' : 'initial') : 'fallback'),
         ...(attempt === 1 ? (o.escalateFrom ? { from_job: o.escalateFrom } : {}) : { from_job: prevJob }),
         ...(expectedKey ? { expected: expectedKey } : {}),
         billing: next.row.billing,
@@ -479,18 +519,6 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
       })
       pendingReason = undefined
       lease.update({ job, harness: next.row.harness, model: next.row.model })
-      const built = adapter.build({
-        model: next.row.model,
-        effort: next.effort,
-        cwd: ws.cwd,
-        briefPath: o.brief,
-        job,
-        outDir: join(dataDir(), 'logs'),
-        timeoutS,
-        maxTurns,
-        bypass: o.bypass ?? false,
-        allow: o.allow ?? []
-      })
       const env = workerEnv(adapter, built)
       const logOut = join(dataDir(), 'logs', `${job}.log`)
       const logErr = join(dataDir(), 'logs', `${job}.err`)
@@ -500,6 +528,8 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
         timeoutS,
         logOut,
         logErr,
+        ...(built.stdinPath !== undefined ? { stdinPath: built.stdinPath } : {}),
+        ...(built.stdinText !== undefined ? { stdinText: built.stdinText } : {}),
         onSpawn: (info) => {
           workerPgid = info.pgid
           lease.update({ pgid: info.pgid, workerTicks: readStartTicks(info.pid) })

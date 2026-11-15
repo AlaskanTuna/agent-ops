@@ -85,7 +85,7 @@ test('a contributor model at max effort is rounded and the key is hidden', async
       '--dir',
       sb.repo,
       '--kind',
-      'transcribe',
+      'inventory',
       '--public'
     ],
     {
@@ -107,7 +107,7 @@ test('a contributor model at max effort is rounded and the key is hidden', async
     '--permission-mode',
     'acceptEdits',
     '--max-turns',
-    '8',
+    '40',
     '--output-format',
     'json'
   ])
@@ -160,7 +160,7 @@ test('the stub environment is isolated', async () => {
       '--dir',
       sb.repo,
       '--kind',
-      'transcribe',
+      'inventory',
       '--public'
     ],
     {
@@ -194,7 +194,7 @@ test('usage is summed from modelUsage and the cost is computed', async () => {
       '--dir',
       sb.repo,
       '--kind',
-      'transcribe',
+      'inventory',
       '--public'
     ],
     {
@@ -236,7 +236,7 @@ test('401, 402 and 429 map to outcomes and fall back', async () => {
         '--dir',
         sb.repo,
         '--kind',
-        'transcribe',
+        'inventory',
         '--public'
       ],
       {
@@ -267,7 +267,7 @@ test('a turn cap is a job error', async () => {
       '--dir',
       sb.repo,
       '--kind',
-      'transcribe',
+      'inventory',
       '--public'
     ],
     {
@@ -333,7 +333,7 @@ test('a clean result that mentions 429 stays ok', async () => {
       '--dir',
       sb.repo,
       '--kind',
-      'transcribe',
+      'inventory',
       '--public'
     ],
     {
@@ -393,7 +393,7 @@ test('no key on file skips the candidate', async () => {
       '--dir',
       sb.repo,
       '--kind',
-      'transcribe',
+      'inventory',
       '--public'
     ],
     {
@@ -429,7 +429,7 @@ test('the key appears nowhere', async () => {
       '--dir',
       sb.repo,
       '--kind',
-      'transcribe',
+      'inventory',
       '--public'
     ],
     {
@@ -480,7 +480,7 @@ test('the mined fixtures classify as recorded', async () => {
         '--dir',
         sb.repo,
         '--kind',
-        'transcribe',
+        'inventory',
         '--public'
       ],
       {
