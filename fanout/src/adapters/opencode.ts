@@ -57,9 +57,13 @@ export class OpenCodeAdapter implements Adapter {
     for (const token of p.stdout.toString().split(/\s+/)) {
       const line = token.trim()
       if (!line || !line.includes('/')) continue
-      let billing: Billing = 'paid'
+      // opencode lists every provider it is logged into (OpenRouter, Google,
+      // Copilot, paid Zen). Those bill accounts fanout cannot price, so the
+      // opencode harness offers only free Zen and opencode-go subscription models.
+      let billing: Billing
       if (line.startsWith('opencode/') && line.endsWith('-free')) billing = 'free'
       else if (line.startsWith('opencode-go/')) billing = 'subscription'
+      else continue
       out.push({ model: line, billing })
     }
     return out

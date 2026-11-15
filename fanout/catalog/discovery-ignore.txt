@@ -1,1 +1,8 @@
 ^agy/claude-
+# not worker chat models: media, voice, segmentation, review bots
+^meta/muse-(image|voice)
+^meta/sam-
+^codex/codex-auto-review$
+^codex/gpt-reserve$
+# superseded: same price as the 1.3 line with lower scores (meta-fanout skill)
+^meta/muse-spark-1\.[12]

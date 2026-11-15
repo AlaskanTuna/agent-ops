@@ -228,8 +228,7 @@ test('the listing is classified by prefix', async () => {
   const out = await new Response(proc.stdout).text()
   expect(JSON.parse(out)).toEqual([
     { model: 'opencode/space-bunny-free', billing: 'free' },
-    { model: 'opencode-go/x', billing: 'subscription' },
-    { model: 'acme/y', billing: 'paid' }
+    { model: 'opencode-go/x', billing: 'subscription' }
   ])
 }, 30000)
 
