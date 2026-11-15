@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "agent-ops fanout Architecture",
+    "output": ".archify/architecture-fanout-20261115-233600/architecture.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "repository": {
+      "url": "https://github.com/AlaskanTuna/agent-ops.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "a50a3c0292203cfd4e52988cefecb3e322e0dbd0"
+    }
+  },
+  "components": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "Developer",
+      "sublabel": "approves once per dispatch",
+      "icon": "person",
+      "pos": [40, 190],
+      "size": [170, 64]
+    },
+    {
+      "id": "harness",
+      "type": "frontend",
+      "label": "Lead Agent",
+      "sublabel": "Claude Code · Codex · Gemini",
+      "pos": [330, 190],
+      "size": [170, 64],
+      "sources": [{ "path": "fanout/skill/SKILL.md", "line": 1, "end_line": 20 }]
+    },
+    {
+      "id": "fanout",
+      "type": "backend",
+      "label": "fanout CLI",
+      "sublabel": "pick · run · fallback",
+      "pos": [620, 190],
+      "size": [170, 64],
+      "sources": [
+        { "path": "fanout/src/run.ts", "line": 191, "end_line": 200 },
+        { "path": "fanout/src/pick.ts", "line": 63, "end_line": 70 }
+      ]
+    },
+    {
+      "id": "workers",
+      "type": "backend",
+      "label": "Worker CLIs",
+      "sublabel": "codex · agy · claude -p",
+      "pos": [910, 190],
+      "size": [170, 64],
+      "sources": [{ "path": "fanout/src/adapters/index.ts", "line": 40, "end_line": 66 }]
+    },
+    {
+      "id": "providers",
+      "type": "cloud",
+      "label": "Model Providers",
+      "sublabel": "subscriptions · USD · MC",
+      "pos": [910, 40],
+      "size": [170, 64]
+    },
+    {
+      "id": "catalog",
+      "type": "database",
+      "label": "Catalog",
+      "sublabel": "defaults · auto · private",
+      "pos": [620, 40],
+      "size": [170, 64],
+      "sources": [{ "path": "fanout/src/catalog.ts", "line": 222, "end_line": 230 }]
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "JSONL Ledger",
+      "sublabel": "append-only events",
+      "pos": [620, 340],
+      "size": [170, 64],
+      "sources": [{ "path": "fanout/src/events.ts", "line": 56, "end_line": 70 }]
+    },
+    {
+      "id": "hooks",
+      "type": "backend",
+      "label": "Report Hooks",
+      "sublabel": "Stop · SessionStart · toast",
+      "pos": [330, 340],
+      "size": [170, 64],
+      "sources": [
+        { "path": "fanout/bin/fanout-stop-hook", "line": 1, "end_line": 19 },
+        { "path": "fanout/src/notify.ts", "line": 158, "end_line": 170 }
+      ]
+    },
+    {
+      "id": "upkeep",
+      "type": "backend",
+      "label": "Daily Upkeep",
+      "sublabel": "systemd timer · discovery",
+      "pos": [910, 340],
+      "size": [170, 64],
+      "sources": [{ "path": "fanout/src/upkeep/index.ts", "line": 27, "end_line": 40 }]
+    },
+    {
+      "id": "aa",
+      "type": "external",
+      "label": "Artificial Analysis",
+      "sublabel": "free benchmarks API",
+      "pos": [1200, 340],
+      "size": [170, 64],
+      "sources": [{ "path": "fanout/src/upkeep/benchmarks.ts", "line": 270, "end_line": 272 }]
+    },
+    {
+      "id": "report",
+      "type": "backend",
+      "label": "fanout report",
+      "sublabel": "DuckDB analytics",
+      "pos": [620, 490],
+      "size": [170, 64],
+      "sources": [{ "path": "fanout/src/commands/report.ts", "line": 1, "end_line": 6 }]
+    }
+  ],
+  "connections": [
+    { "id": "user-to-harness", "from": "user", "to": "harness", "label": "fanout this", "variant": "emphasis" },
+    { "id": "harness-to-fanout", "from": "harness", "to": "fanout", "label": "pick · run", "variant": "emphasis" },
+    { "id": "fanout-to-workers", "from": "fanout", "to": "workers", "label": "per worktree", "variant": "emphasis" },
+    { "id": "workers-to-providers", "from": "workers", "to": "providers", "label": "model calls" },
+    { "id": "fanout-to-catalog", "from": "fanout", "to": "catalog", "label": "rank tiers" },
+    { "id": "fanout-to-ledger", "from": "fanout", "to": "ledger", "label": "append events" },
+    { "id": "hooks-to-ledger", "from": "hooks", "to": "ledger", "label": "unreported?" },
+    { "id": "hooks-to-harness", "from": "hooks", "to": "harness", "label": "report first" },
+    { "id": "upkeep-to-ledger", "from": "upkeep", "to": "ledger", "label": "cooldowns" },
+    { "id": "aa-to-upkeep", "from": "aa", "to": "upkeep", "label": "AA index" },
+    { "id": "report-to-ledger", "from": "report", "to": "ledger", "label": "read_json" }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Fallback",
+      "items": [
+        "A quota, rate limit or credit wall cools the model down and moves the chunk to the next candidate",
+        "Each attempt runs in its own git worktree; a private repository never reaches a contributor model"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Reporting",
+      "items": [
+        "Every FALLBACK and COST line goes to the user, then fanout ack",
+        "Paid jobs carry an estimate before and the actual cost after"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Upkeep",
+      "items": [
+        "Discovers new and retired models and writes auto catalog rows",
+        "Smoke-tests new models and never spends USD credit"
+      ]
+    }
+  ]
+}

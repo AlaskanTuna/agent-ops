@@ -110,3 +110,6 @@ secrets.env
 *.key
 fanout/.tmp/
 fanout/dist/
+
+# archify build output
+.archify/

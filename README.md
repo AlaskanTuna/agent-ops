@@ -77,22 +77,13 @@ The rule it never breaks: **every fallback is reported to the user, and every jo
 
 ### How It Works
 
-```text
-lead agent ──► fanout pick ──► user approves once ──► fanout run
-                                                         │
-                     ┌───────────────────────────────────┤
-                     ▼                                   ▼
-           worker in its own worktree        quota / limit / credit wall?
-                     │                                   │
-                     ▼                                   ▼
-            FANOUT / COST lines ◄──── fallback to the next candidate (FALLBACK line)
-                     │
-                     ▼
-        agent tells the user, fanout ack, verdict ──► append-only JSONL ledger
-                                                         │
-                         daily upkeep: discover models, refresh benchmarks,
-                         smoke-test new models, learn error patterns, report
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="/docs/readme/architecture-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="/docs/readme/architecture-light.svg">
+  <img src="/docs/readme/architecture-light.svg" alt="agent-ops architecture: the developer asks a lead agent to fan out work; the fanout CLI ranks models from the catalog, runs worker CLIs per worktree against model providers, and appends events to a JSONL ledger that report hooks, daily upkeep and fanout report read.">
+</picture>
+
+The diagram is drawn with [Archify](https://github.com/tt-a1i/archify) from [architecture.json](/docs/readme/architecture.json).
 
 1. **Pick.** Candidates are ranked by tier, then billing (subscription and free before paid), then estimated cost, then benchmark score. After 20 judged jobs for a model and task kind, your own success rate outranks the benchmarks.
 1. **Run.** Each attempt gets a fresh git worktree. A private repository never goes to a model that trains on its input.
