@@ -30,6 +30,9 @@ const STDOUT_TAIL = 256 * 1024
 const STDERR_TAIL = 64 * 1024
 
 const ALLOW = [
+  // Not a secret: lets session-aware tools (the Claude Code HUD's worker count)
+  // attribute a worker to the session that dispatched it.
+  'CLAUDE_CODE_SESSION_ID',
   'PATH',
   'HOME',
   'USER',

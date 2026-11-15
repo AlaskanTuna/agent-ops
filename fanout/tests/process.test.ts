@@ -76,13 +76,21 @@ test('the worker environment is the allowlist and nothing else', async () => {
   sb.script({ 'fake/f1-a': ['print_env'] })
   const outFile = join(sb.home, 'env.txt')
   const r = await sb.fanout(RUN(sb), {
-    env: { SECRET_PROBE: '1', ANTHROPIC_API_KEY: 'x', FAKE_OUT: outFile, FAKE_FLAG: '1' }
+    env: {
+      SECRET_PROBE: '1',
+      ANTHROPIC_API_KEY: 'x',
+      FAKE_OUT: outFile,
+      FAKE_FLAG: '1',
+      CLAUDE_CODE_SESSION_ID: 'sess-1'
+    }
   })
   expect(r.code).toBe(0)
   const text = readFileSync(outFile, 'utf8')
   expect(text).toMatch(/^FANOUT_DEPTH=1$/m)
   expect(text).toMatch(/^FAKE_FLAG=1$/m)
   expect(text).toMatch(/^PATH=/m)
+  // the HUD attributes workers to their session through this variable
+  expect(text).toMatch(/^CLAUDE_CODE_SESSION_ID=sess-1$/m)
   expect(text).not.toMatch(/^SECRET_PROBE=/m)
   expect(text).not.toMatch(/^ANTHROPIC_API_KEY=/m)
   expect(text).not.toMatch(/^FANOUT_HOME=/m)
