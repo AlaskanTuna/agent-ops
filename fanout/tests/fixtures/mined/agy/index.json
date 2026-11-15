@@ -1,0 +1,10 @@
+[
+  {
+    "id": "0ec7adbd5321",
+    "file": "0ec7adbd5321.txt",
+    "signature": "error: individual quota reached. please upgrade your subscription to increase your limits. resets in <n>h<n>m<n>s.",
+    "count": 4,
+    "sessions": 3,
+    "outcome": "quota_exhausted"
+  }
+]

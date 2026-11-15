@@ -1,0 +1,10 @@
+[
+  {
+    "id": "0f67e490b8b9",
+    "file": "0f67e490b8b9.txt",
+    "signature": "timeout: the monitored command dumped core",
+    "count": 2,
+    "sessions": 1,
+    "outcome": "worker_error"
+  }
+]
