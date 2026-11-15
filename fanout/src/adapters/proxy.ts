@@ -43,6 +43,29 @@ function isEntry(raw: unknown): raw is { name: unknown; alias?: unknown } {
   return typeof raw === 'object' && raw !== null && 'name' in raw
 }
 
+// CLIProxyAPI's real config lists providers under `openai-compatibility`, each
+// with `base-url` and `api-key-entries: [{ api-key }]`. Older fixtures use a
+// `providers` list with `baseUrl` and `api-keys`. Both normalise to one shape.
+export function normalizeProviders(o: Record<string, unknown>): Record<string, unknown>[] | undefined {
+  const list = Array.isArray(o['openai-compatibility'])
+    ? o['openai-compatibility']
+    : Array.isArray(o.providers)
+      ? o.providers
+      : undefined
+  if (!list) return undefined
+  return list.map((p) => {
+    if (typeof p !== 'object' || p === null) return p as Record<string, unknown>
+    const po = { ...(p as Record<string, unknown>) }
+    if (po.baseUrl === undefined && typeof po['base-url'] === 'string') po.baseUrl = po['base-url']
+    if (po['api-keys'] === undefined && Array.isArray(po['api-key-entries'])) {
+      po['api-keys'] = (po['api-key-entries'] as unknown[])
+        .map((e) => (typeof e === 'object' && e !== null ? (e as Record<string, unknown>)['api-key'] : undefined))
+        .filter((k) => typeof k === 'string' && k !== '')
+    }
+    return po
+  })
+}
+
 // The token lives in the parsed file, never in an error: every failure below
 // reports only the config path.
 export function readProxyConfig(): ProxyConfig {
@@ -60,8 +83,8 @@ export function readProxyConfig(): ProxyConfig {
   if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) throw fail()
   const keys = o['api-keys']
   if (!Array.isArray(keys) || typeof keys[0] !== 'string' || keys[0] === '') throw fail()
-  const providersRaw = o.providers
-  if (!Array.isArray(providersRaw)) throw fail()
+  const providersRaw = normalizeProviders(o)
+  if (!providersRaw) throw fail()
   const providers: ProxyProvider[] = []
   for (const p of providersRaw) {
     if (typeof p !== 'object' || p === null) throw fail()

@@ -103,7 +103,9 @@ function runCmd(argv0: string, args: string[], extraEnv?: Record<string, string>
   })
 }
 
-const TOAST_SCRIPT = 'New-BurntToastNotification -Text @($env:FANOUT_TOAST_TITLE, $env:FANOUT_TOAST_BODY)'
+// Built into Windows 10+: needs no PowerShell module (BurntToast is not installed by default).
+export const TOAST_SCRIPT =
+  "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null; $t = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02); $x = $t.GetElementsByTagName('text'); $x.Item(0).AppendChild($t.CreateTextNode($env:FANOUT_TOAST_TITLE)) > $null; $x.Item(1).AppendChild($t.CreateTextNode($env:FANOUT_TOAST_BODY)) > $null; [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe').Show([Windows.UI.Notifications.ToastNotification]::new($t))"
 
 async function sendNotice(n: Notice): Promise<void> {
   const override = process.env.FANOUT_NOTIFY_CMD

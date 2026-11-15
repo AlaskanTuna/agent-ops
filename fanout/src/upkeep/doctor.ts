@@ -1,3 +1,4 @@
+import { TOAST_SCRIPT } from '../notify'
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { adapterFor } from '../adapters/index'
@@ -289,20 +290,17 @@ export async function sendTestNotice(): Promise<boolean> {
       const p = Bun.spawnSync(['notify-send', title, body], { stdout: 'ignore', stderr: 'ignore' })
       return p.exitCode === 0
     }
-    const p = Bun.spawnSync(
-      [
-        'powershell.exe',
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        'New-BurntToastNotification -Text @($env:FANOUT_TOAST_TITLE, $env:FANOUT_TOAST_BODY)'
-      ],
-      {
-        stdout: 'ignore',
-        stderr: 'ignore',
-        env: { ...process.env, FANOUT_TOAST_TITLE: title, FANOUT_TOAST_BODY: body }
+    const p = Bun.spawnSync(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', TOAST_SCRIPT], {
+      stdout: 'ignore',
+      stderr: 'ignore',
+      env: {
+        ...process.env,
+        FANOUT_TOAST_TITLE: title,
+        FANOUT_TOAST_BODY: body,
+        // WSL passes only the variables WSLENV names to a Windows process
+        WSLENV: `${process.env.WSLENV ? `${process.env.WSLENV}:` : ''}FANOUT_TOAST_TITLE:FANOUT_TOAST_BODY`
       }
-    )
+    })
     return p.exitCode === 0
   } catch {
     return false

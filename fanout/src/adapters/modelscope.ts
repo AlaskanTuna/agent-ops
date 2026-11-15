@@ -1,3 +1,4 @@
+import { normalizeProviders } from './proxy'
 import { chmodSync, closeSync, mkdirSync, openSync, readFileSync, statSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
@@ -68,8 +69,9 @@ export function readModelScopeConfig(): ModelScopeConfig {
   const o = raw as Record<string, unknown>
   const port = o.port
   if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) throw invalid()
-  if (!Array.isArray(o.providers)) throw invalid()
-  const scoped = o.providers.filter(
+  const providers = normalizeProviders(o)
+  if (!providers) throw invalid()
+  const scoped = providers.filter(
     (p) => typeof p === 'object' && p !== null && (p as Record<string, unknown>).name === 'modelscope'
   )
   if (scoped.length !== 1) throw invalid()
@@ -90,7 +92,7 @@ export function readModelScopeConfig(): ModelScopeConfig {
   if (new Set(aliases).size !== aliases.length) throw invalid()
   // No ModelScope name or alias may collide with another provider's names or aliases.
   const foreign = new Set<string>()
-  for (const p of o.providers) {
+  for (const p of providers) {
     if (typeof p !== 'object' || p === null) continue
     const po = p as Record<string, unknown>
     if (po.name === 'modelscope') continue
@@ -103,11 +105,20 @@ export function readModelScopeConfig(): ModelScopeConfig {
       if (typeof mo.alias === 'string' && mo.alias !== '') foreign.add(mo.alias)
     }
   }
+  // Requests go by alias, so only an alias may not collide; the same upstream
+  // model served by two providers (each under its own alias) is fine.
   for (const m of models) {
-    if (foreign.has(m.name)) throw invalid()
     if (m.alias !== undefined && foreign.has(m.alias)) throw invalid()
   }
-  return { port, token: keys[0] as string, models }
+  // Clients authenticate to the local proxy with its own top-level api key; the
+  // provider's key above is the proxy's upstream credential and only proves
+  // the route is configured. Old fixtures without a top-level key fall back.
+  const clientKeys = o['api-keys']
+  const token =
+    Array.isArray(clientKeys) && typeof clientKeys[0] === 'string' && clientKeys[0] !== ''
+      ? (clientKeys[0] as string)
+      : (keys[0] as string)
+  return { port, token, models }
 }
 
 function collectLive(data: unknown): Set<string> | undefined {

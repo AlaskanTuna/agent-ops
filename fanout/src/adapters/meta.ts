@@ -1,3 +1,5 @@
+import { join } from 'node:path'
+import { homeDir } from '../paths'
 import { readFileSync } from 'node:fs'
 import type { ModelInfo, Preflight } from './types'
 import { ClaudeCliAdapter, type ClaudeCliConfig } from './claude-cli'
@@ -19,8 +21,9 @@ function metaRules(): Rule[] {
 export function readMetaKey(): string | undefined {
   const fromEnv = process.env.META_MODEL_API_KEY
   if (fromEnv !== undefined && fromEnv !== '') return fromEnv
-  const file = process.env.FANOUT_SECRETS
-  if (!file) return undefined
+  // Same default as the meta-fanout skill: CC_META_SECRETS, else the shared secrets file.
+  const file =
+    process.env.FANOUT_SECRETS ?? process.env.CC_META_SECRETS ?? join(homeDir(), '.config', 'tolong', 'secrets.env')
   let text: string
   try {
     text = readFileSync(file, 'utf8')
@@ -28,7 +31,7 @@ export function readMetaKey(): string | undefined {
     return undefined
   }
   for (const line of text.split('\n')) {
-    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line)
+    const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line)
     if (!m || m[1] !== 'META_MODEL_API_KEY') continue
     let v = m[2]
     if (v.length >= 2 && ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'")))) {
