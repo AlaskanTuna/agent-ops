@@ -1,0 +1,40 @@
+{
+  "rules": [
+    {
+      "id": "meta-401",
+      "re": "HTTP 401|api_error_status[\"']?\\s*[:=]\\s*401",
+      "outcome": "auth_error"
+    },
+    {
+      "id": "meta-402",
+      "re": "HTTP 402|HTTP 403|api_error_status[\"']?\\s*[:=]\\s*40[23]",
+      "outcome": "credits_exhausted",
+      "scope": "account"
+    },
+    {
+      "id": "meta-429",
+      "re": "HTTP 429|api_error_status[\"']?\\s*[:=]\\s*429|150 requests a minute",
+      "outcome": "rate_limited"
+    },
+    {
+      "id": "meta-effort",
+      "re": "400[^\\n]*effort|effort[^\\n]*400",
+      "outcome": "model_unavailable"
+    },
+    {
+      "id": "meta-max-turns",
+      "re": "error_max_turns(\\s+\\d[\\d:.,]*)?",
+      "outcome": "job_error"
+    },
+    {
+      "id": "meta-http-401",
+      "re": "meta-setup: error: get \\S+ returned http \\d[\\d:.,]*: unauthorized",
+      "outcome": "auth_error"
+    },
+    {
+      "id": "meta-no-key",
+      "re": "meta-setup: error: no meta_model_api_key in \\S+; ask the user to run cc-set-meta-key in their own terminal",
+      "outcome": "auth_error"
+    }
+  ]
+}

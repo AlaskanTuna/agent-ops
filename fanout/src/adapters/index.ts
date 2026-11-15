@@ -3,6 +3,7 @@ import { SkipCandidate } from './types'
 import { CodexAdapter } from './codex'
 import { AgyAdapter } from './agy'
 import { FakeAdapter } from './fake'
+import { MetaAdapter } from './meta'
 
 class UnwiredAdapter implements Adapter {
   readonly name: string
@@ -41,6 +42,9 @@ export function adapterFor(harness: string): Adapter {
   }
   if (harness === 'agy') {
     return new AgyAdapter()
+  }
+  if (harness === 'meta') {
+    return new MetaAdapter()
   }
   return new UnwiredAdapter(harness)
 }

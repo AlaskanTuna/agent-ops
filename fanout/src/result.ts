@@ -44,6 +44,7 @@ export function renderBlock(o: {
   retries?: Retry[]
   preFallback?: PreFallback
   notes?: string[]
+  denials?: number
   failed?: string
 }): ChainResult {
   const lines = [`FANOUT job=${o.job} harness=${o.harness} model=${o.model} outcome=${o.outcome} attempt=${o.attempt}`]
@@ -62,6 +63,7 @@ export function renderBlock(o: {
     lines.push(`RETRY ${r.harness}/${r.model} ${r.outcome}; retried once on the same model`)
   }
   for (const n of o.notes ?? []) lines.push(n)
+  if (o.denials !== undefined) lines.push(`DENIALS=${o.denials}`)
   if (o.worktree) lines.push(`WORKTREE=${o.worktree}`)
   if (o.patch) lines.push(`PATCH=${o.patch}`)
   if (o.failed) lines.push(o.failed)
