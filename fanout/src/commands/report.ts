@@ -1,5 +1,7 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
+// @ts-expect-error bun text import: inlined at bundle time, no type declarations
+import reportSql from '../../sql/report.sql' with { type: 'text' }
 import { loadCatalog } from '../catalog'
 import { nowMs } from '../clock'
 import { DUCKDB_MISSING, duckdbJson } from '../duckdb'
@@ -97,7 +99,7 @@ export async function runReport(rawArgs: string[]): Promise<number> {
   }
   let rows: AggRow[] = []
   if (files.length > 0) {
-    const template = readFileSync(join(import.meta.dir, '../../sql/report.sql'), 'utf8')
+    const template = reportSql as string
     const cutoff = new Date(nowMs() - sinceDays * 86400_000).toISOString()
     const sql = template
       .replaceAll('__EVENTS_GLOB__', join(dataDir(), 'events', '*.jsonl'))
