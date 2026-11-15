@@ -137,6 +137,19 @@ link_skill() {
 link_skill "$HOME/.claude/skills/fanout" 'skills-claude-fanout'
 link_skill "$HOME/.agents/skills/fanout" 'skills-agents-fanout'
 
+# 5b. Re-sync the shared skill into every harness folder. The sync tool resolves
+# links to the versioned build, so each install must re-run it or the other
+# harnesses keep pointing at an old (later pruned) build. Fail open.
+SYNC="$HOME/.agents/bin/sync-harnesses.sh"
+if [ -x "$SYNC" ] || [ -f "$SYNC" ]; then
+  if [ "$DRY" = 1 ]; then
+    echo "RUN $SYNC"
+  else
+    bash "$SYNC" >/dev/null 2>&1 && echo "SYNC skills to every harness" ||
+      echo "WARN install: $SYNC failed; run it by hand"
+  fi
+fi
+
 # 6. Daily upkeep timer. Skipped whole when asked; a failing systemctl warns,
 # never fails the install (fail open: the timer is convenience, not the CLI).
 if [ "${FANOUT_INSTALL_NO_SYSTEMD:-0}" != 1 ]; then
