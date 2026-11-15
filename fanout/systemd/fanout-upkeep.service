@@ -1,0 +1,8 @@
+[Unit]
+Description=fanout daily upkeep (never spends paid credit)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/lib/agent-ops/fanout/current/fanout upkeep
+Environment=PATH=%h/.bun/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Nice=10

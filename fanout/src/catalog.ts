@@ -4,6 +4,7 @@ import type { Billing } from './adapters/types'
 import { autoCatalogPath, catalogOverridePath, privateCatalogPath } from './paths'
 // @ts-expect-error bun text import: inlined at bundle time, no type declarations
 import bundledCsv from '../catalog/catalog.default.csv' with { type: 'text' }
+import kindsJson from '../catalog/kinds.json'
 
 export type { Billing }
 export type DataClass = 'any' | 'public-only'
@@ -308,10 +309,7 @@ function fullRow(r: Record<string, string>): Record<string, string> {
 
 export function kindInfo(kind: string): KindInfo {
   try {
-    const kinds = JSON.parse(readFileSync(new URL('../catalog/kinds.json', import.meta.url), 'utf8')) as Record<
-      string,
-      KindInfo
-    >
+    const kinds = kindsJson as unknown as Record<string, KindInfo>
     const found = kinds[kind]
     if (found) return found
   } catch {

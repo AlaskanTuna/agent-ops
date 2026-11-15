@@ -44,5 +44,13 @@ async function main(): Promise<number> {
   return await cmd(rest)
 }
 
-const code = await main()
-process.exit(code)
+// No top-level await here: the bundled single-file copy wraps every module
+// in a sync initializer, and the command modules import this one, so a
+// top-level await deadlocks the bundle. main() is async either way.
+main().then(
+  (code) => process.exit(code),
+  (err) => {
+    console.error(err)
+    process.exit(1)
+  }
+)
