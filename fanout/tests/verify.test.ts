@@ -26,14 +26,11 @@ test('the sandbox verification passes', () => {
     stderr: 'pipe'
   })
   const out = r.stdout.toString()
-  // doctor (Task 31) is not built in this worktree, so version cannot pass
-  // yet; every other check must. Relax to ALL PASS once doctor lands.
-  expect(r.exitCode).toBe(1)
-  for (const name of ['fallback', 'cost', 'dryrun', 'detach', 'report', 'hygiene']) {
+  expect(r.exitCode).toBe(0)
+  for (const name of ['version', 'fallback', 'cost', 'dryrun', 'detach', 'report', 'hygiene']) {
     expect(out, name).toMatch(new RegExp(`^PASS ${name}:`, 'm'))
   }
-  expect(out).toMatch(/^FAIL version: doctor /m)
-  expect(out.trim().split('\n').at(-1)).toMatch(/^FAILED 1$/)
+  expect(out.trim().split('\n').at(-1)).toBe('ALL PASS')
 }, 300000)
 
 test('a broken fake worker fails the checks', () => {

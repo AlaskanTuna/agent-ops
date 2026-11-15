@@ -103,6 +103,8 @@ export class Sandbox {
       FANOUT_HOME: this.home,
       FANOUT_FAKE: '1',
       FANOUT_NO_LAZY: '1',
+      // never pop a real desktop toast from a test; notify tests set their own stub
+      FANOUT_NOTIFY_CMD: 'true',
       FANOUT_NO_SLEEP: '1',
       FANOUT_CALLER: 'test',
       FANOUT_SESSION: 'S1',
