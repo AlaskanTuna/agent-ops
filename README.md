@@ -8,7 +8,7 @@
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="/docs/readme/banner-dark.png">
       <source media="(prefers-color-scheme: light)" srcset="/docs/readme/banner-light.png">
-      <img src="/docs/readme/banner-light.png" alt="agent-ops: a line-up of worker-model mascots in black suits and sunglasses, one dispatcher for every model.">
+      <img src="/docs/readme/banner-light.png" alt="agent-ops: one dispatcher, every model. Model mascots in black suits and sunglasses line up like agents: Codex, Muse, Clawd at the centre, Gemini, DeepSeek and GLM.">
     </picture>
   </a>
 
@@ -206,7 +206,7 @@ Distributed under the Apache License 2.0. See [LICENSE](/LICENSE) for more infor
 - Benchmark data: [Artificial Analysis](https://artificialanalysis.ai/), required attribution for use of their free API; [Arena](https://arena.ai/) WebDev and FrontierCode 2.0 scores imported by hand
 - The agent setup of [m1kulabs](https://github.com/m1kulabs) projects, which this repository follows
 - [Matt Pocock's skills](https://github.com/mattpocock/skills) and [Shields.io](https://shields.io)
-- The banner mascots are original characters; they are not the logos or mascots of any model provider
+- The banner is a fan rendition of model mascots (Clawd, Codex, Muse, Gemini, DeepSeek and GLM) in agent suits. agent-ops is not affiliated with or endorsed by any model provider
 
 <p align="right"><a href="#readme-top">&uarr;</a></p>
 
