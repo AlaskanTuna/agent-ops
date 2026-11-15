@@ -1,4 +1,7 @@
 import type { Adapter, Classified, Outcome, RunOutput } from './adapters/types'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { dataDir } from './paths'
 
 import genericJson from '../patterns/generic.json'
 
@@ -24,6 +27,32 @@ function adapterRules(adapter: Adapter): Rule[] {
   try {
     const rules = (adapter as unknown as { rules?: Rule[] }).rules
     return Array.isArray(rules) ? rules : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Learned rules rank below every built-in rule and apply to one harness.
+ * A corrupt or missing file disables learning, never classification.
+ */
+function learnedRules(harness: string): Rule[] {
+  try {
+    const path = join(dataDir(), 'learned', 'patterns.json')
+    if (!existsSync(path)) return []
+    const parsed = JSON.parse(readFileSync(path, 'utf8')) as { rules?: unknown }
+    if (!Array.isArray(parsed.rules)) return []
+    const out: Rule[] = []
+    for (const r of parsed.rules) {
+      if (r === null || typeof r !== 'object') continue
+      const o = r as { id?: unknown; harness?: unknown; re?: unknown; outcome?: unknown; scope?: unknown }
+      if (typeof o.id !== 'string' || typeof o.re !== 'string' || o.harness !== harness) continue
+      if (o.outcome !== 'worker_error') continue
+      const rule: Rule = { id: o.id, re: o.re, outcome: 'worker_error' }
+      if (o.scope === 'model' || o.scope === 'account') rule.scope = o.scope
+      out.push(rule)
+    }
+    return out
   } catch {
     return []
   }
@@ -124,7 +153,7 @@ export function parseReset(text: string, nowMs: number): number | undefined {
 
 export function classify(adapter: Adapter, out: RunOutput, nowMs: number): Classified {
   if (out.timedOut) return { outcome: 'timeout' }
-  const rules = [...adapterRules(adapter), ...genericRules()]
+  const rules = [...adapterRules(adapter), ...genericRules(), ...learnedRules(adapter.name)]
   const cleanExit = out.exit === 0
   const text = `${out.stderr}\n${out.stdout.slice(-2048)}`
   for (const rule of rules) {

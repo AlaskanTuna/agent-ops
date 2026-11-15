@@ -17,7 +17,18 @@ import { reapStaleLeases } from './reaper'
 import { dataDir } from './paths'
 import { candidates, nextCandidate, nextRung, resolveModel, type PickInput } from './pick'
 import { formatLocalHM, renderBlock, type PreFallback, type RenderExtra } from './result'
-import { backoffUntil, coolingOf, halfOpenTrialKey, readState, releaseTrial, takeTrial, waitTarget } from './state'
+import {
+  appendLearned,
+  backoffUntil,
+  coolingOf,
+  halfOpenTrialKey,
+  readLearned,
+  readState,
+  releaseTrial,
+  takeTrial,
+  trialStanding,
+  waitTarget
+} from './state'
 import { scrubTail } from './scrub'
 import { newId } from './ulid'
 import { nowIso, nowMs, sleepClock } from './clock'
@@ -150,13 +161,40 @@ export async function runDetached(o: RunOptions, passthrough: string[]): Promise
   return { code: 0, block: `JOB ${root}` }
 }
 
-export async function runChain(o: RunOptions): Promise<{ code: number; block: string }> {
+/**
+ * Promotion on first use: a trial paid row's first real job proves it. An
+ * `ok` job promotes the row; `no_effect` or `worker_error` hides it for 7
+ * days. Other outcomes leave the row alone for a later attempt.
+ */
+function recordFirstUse(
+  row: CatalogRow,
+  outcome: string,
+  caller: string,
+  session: string | undefined,
+  repo: string
+): void {
+  if (row.status !== 'trial' || row.billing !== 'paid') return
+  const key = `${row.harness}/${row.model}`
+  if (readLearned().firstUse.has(key)) return
+  if (outcome !== 'ok' && outcome !== 'no_effect' && outcome !== 'worker_error') return
+  appendLearned('state.jsonl', {
+    ts: nowIso(),
+    kind: 'first_use',
+    key,
+    result: outcome === 'ok' ? 'pass' : 'fail',
+    caller,
+    ...(session !== undefined ? { session } : {}),
+    repo
+  })
+}
+
+export async function runChain(o: RunOptions): Promise<{ code: number; block: string; root: string }> {
   const depthRaw = Number.parseInt(process.env.FANOUT_DEPTH ?? '0', 10)
   const depth = Number.isFinite(depthRaw) ? depthRaw : 0
   if (depth >= 1) {
     const block = `REFUSED nested fanout (FANOUT_DEPTH=${process.env.FANOUT_DEPTH})`
     console.log(block)
-    return { code: 3, block }
+    return { code: 3, block, root: o.root ?? '' }
   }
   const briefText = readFileSync(o.brief, 'utf8')
   const briefBytes = Buffer.byteLength(briefText, 'utf8')
@@ -164,7 +202,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
   const { rows, warnings, fatal } = loadCatalog()
   if (fatal) {
     console.log(fatal)
-    return { code: 3, block: fatal }
+    return { code: 3, block: fatal, root: o.root ?? '' }
   }
   await reapStaleLeases()
   for (const w of warnings) console.error(w)
@@ -177,7 +215,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
     )
     if (!prior) {
       console.error(`unknown job ${o.escalateFrom}`)
-      return { code: 2, block: '' }
+      return { code: 2, block: '', root: o.root ?? '' }
     }
     const rung = nextRung(
       {
@@ -191,11 +229,11 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
     )
     if (rung === 'top') {
       console.log('REFUSED already at the top tier')
-      return { code: 3, block: 'REFUSED already at the top tier' }
+      return { code: 3, block: 'REFUSED already at the top tier', root: o.root ?? '' }
     }
     if (!rung) {
       console.log('REFUSED no eligible candidate')
-      return { code: 3, block: 'REFUSED no eligible candidate' }
+      return { code: 3, block: 'REFUSED no eligible candidate', root: o.root ?? '' }
     }
     o.model = `${rung.row.harness}/${rung.row.model}`
     o.startEffort = rung.effort
@@ -203,12 +241,12 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
   let startRow: CatalogRow | undefined = o.model ? resolveModel(rows, o.model, o.harness) : undefined
   if (o.model && !startRow) {
     console.error(`unknown model ${o.model}`)
-    return { code: 2, block: '' }
+    return { code: 2, block: '', root: o.root ?? '' }
   }
   if (startRow && actualClass === 'private' && rowClass(startRow, adapterFor(startRow.harness)) === 'public-only') {
     const block = `REFUSED ${startRow.harness}/${startRow.model} is public-only and this chunk is private`
     console.log(block)
-    return { code: 3, block }
+    return { code: 3, block, root: o.root ?? '' }
   }
   const pickInput = (): PickInput => ({
     kind: o.kind,
@@ -289,22 +327,22 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
   if (o.pin && list.length > 1) list = list.slice(0, 1)
   if (list.length === 0) {
     console.log('REFUSED no eligible candidate')
-    return { code: 3, block: 'REFUSED no eligible candidate' }
+    return { code: 3, block: 'REFUSED no eligible candidate', root: o.root ?? '' }
   }
   if (o.bypass && !inGit(dir)) {
     console.error('--bypass needs a git repository')
-    return { code: 2, block: '' }
+    return { code: 2, block: '', root: o.root ?? '' }
   }
   if (o.effort !== undefined) {
     const target = list[0].row
     const key = `${target.harness}/${target.model}`
     if (target.efforts.length === 0) {
       console.error(`${key} takes no effort option`)
-      return { code: 2, block: '' }
+      return { code: 2, block: '', root: o.root ?? '' }
     }
     if (!target.efforts.includes(o.effort)) {
       console.error(`effort ${o.effort} is not one of ${target.efforts.join('|')} for ${key}`)
-      return { code: 2, block: '' }
+      return { code: 2, block: '', root: o.root ?? '' }
     }
     list[0] = { ...list[0], effort: o.effort }
   }
@@ -330,7 +368,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
     const redacted = built.argv.map((a) => (built.secrets.includes(a) ? '[secret]' : a))
     const line = `DRYRUN ${first.row.harness}/${first.row.model} effort=${first.effort} cwd=${built.cwd} argv=${JSON.stringify(redacted)}`
     console.log(line)
-    return { code: 0, block: line }
+    return { code: 0, block: line, root: o.root ?? '' }
   }
   const job = o.root ?? newId()
   const root = o.root ?? job
@@ -425,7 +463,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
         )
         console.log(block)
         writeBlock(root, block)
-        return { code: 1, block }
+        return { code: 1, block, root }
       }
       const adapter = adapterFor(next.row.harness)
       const preflight = await adapter.preflight({ quick: true })
@@ -451,9 +489,14 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
         })
         continue
       }
+      const gateRowKey = `${next.row.harness}/${next.row.model}`
       const trialKey = halfOpenTrialKey(readState(nowMs()), next.row)
-      if (trialKey && !takeTrial(trialKey)) {
-        deferred.add(`${next.row.harness}/${next.row.model}`)
+      // An unproven trial row takes at most one concurrent job: claim it
+      // atomically, and route elsewhere while another chain holds it.
+      const gated = next.row.status === 'trial' && trialStanding(next.row, readLearned(), nowMs()) === 'trial-last'
+      const heldKey = trialKey ?? (gated ? gateRowKey : undefined)
+      if (heldKey && !takeTrial(heldKey)) {
+        deferred.add(gateRowKey)
         continue
       }
       attempt += 1
@@ -461,7 +504,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
       finalJob = job
       finalHarness = next.row.harness
       finalModel = next.row.model
-      activeTrial = trialKey
+      activeTrial = heldKey
       if (next.row.status === 'trial' && !trialNoted) {
         trialNoted = true
         notes.push(`NOTE model ${next.row.harness}/${next.row.model} has no proof of compatibility yet`)
@@ -625,7 +668,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
         const block = liveBlock(root, { ...(preFallback ? { preFallback } : {}), notes }, liveValues())
         console.log(block)
         writeBlock(root, block)
-        return { code: signal === 'SIGTERM' ? 143 : 130, block }
+        return { code: signal === 'SIGTERM' ? 143 : 130, block, root }
       }
       const usage = adapter.usage(out.stdout)
       const classified = classify(adapter, out, endTs)
@@ -675,6 +718,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
       }
       appendEvent(endEvent)
       const rowKey = `${next.row.harness}/${next.row.model}`
+      recordFirstUse(next.row, outcome, caller, session, repo)
       if (outcome === 'job_error' || outcome === 'no_effect') {
         finishAttempt()
         const failed =
@@ -692,7 +736,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
         )
         console.log(block)
         writeBlock(root, block)
-        return { code: 1, block }
+        return { code: 1, block, root }
       }
       const capStop = (outcome: string): string | undefined => {
         if (!o.pin && attempt < maxAttempts) return undefined
@@ -742,10 +786,10 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
           )
           console.log(block)
           writeBlock(root, block)
-          return { code: 1, block }
+          return { code: 1, block, root }
         }
         const stopBlock = capStop(outcome)
-        if (stopBlock !== undefined) return { code: 1, block: stopBlock }
+        if (stopBlock !== undefined) return { code: 1, block: stopBlock, root }
         continue
       }
       let resetMs: number | undefined
@@ -811,7 +855,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
           )
           console.log(block)
           writeBlock(root, block)
-          return { code: 1, block }
+          return { code: 1, block, root }
         }
       }
       if (
@@ -832,7 +876,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
         finishAttempt()
         void stopNote
         const stopBlock = capStop(outcome)
-        if (stopBlock !== undefined) return { code: 1, block: stopBlock }
+        if (stopBlock !== undefined) return { code: 1, block: stopBlock, root }
         continue
       }
       attempts.push({ harness: next.row.harness, model: next.row.model, outcome })
@@ -840,7 +884,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
       const block = liveBlock(root, { ...(preFallback ? { preFallback } : {}), notes }, liveValues())
       console.log(block)
       writeBlock(root, block)
-      return { code: outcome === 'ok' ? 0 : 1, block }
+      return { code: outcome === 'ok' ? 0 : 1, block, root }
     }
   } finally {
     process.removeListener('SIGTERM', onTerm)

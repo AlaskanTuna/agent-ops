@@ -1,6 +1,16 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Adapter, BuildInput, BuiltCommand, Classified, ModelInfo, Preflight, RunOutput, Usage } from './types'
+import type {
+  Adapter,
+  BuildInput,
+  BuiltCommand,
+  Classified,
+  ModelInfo,
+  Outcome,
+  Preflight,
+  RunOutput,
+  Usage
+} from './types'
 import { SkipCandidate } from './types'
 import type { Rule } from '../classify'
 
@@ -87,16 +97,58 @@ export class FakeAdapter implements Adapter {
   }
 
   async listModels(): Promise<ModelInfo[]> {
+    // Test seam: an array lists the `fake` harness; an object maps each
+    // harness to its listing. Anything else is a failed listing. Snake_case
+    // keys are translated to the ModelInfo contract.
+    const raw = process.env.FANOUT_FAKE_MODELS ?? process.env.FAKE_FAKE_MODELS ?? '[]'
+    let parsed: unknown
     try {
-      return JSON.parse(process.env.FAKE_FAKE_MODELS ?? '[]') as ModelInfo[]
+      parsed = JSON.parse(raw)
     } catch {
-      return []
+      throw new Error('FANOUT_FAKE_MODELS is not valid JSON')
     }
+    const toInfo = (m: unknown): ModelInfo => {
+      if (m === null || typeof m !== 'object') throw new Error('FANOUT_FAKE_MODELS entries must be objects')
+      const o = m as Record<string, unknown>
+      const out: Record<string, unknown> = {}
+      const rename: Record<string, string> = {
+        price_in: 'priceIn',
+        price_cached: 'priceCached',
+        price_out: 'priceOut',
+        price_call: 'priceCall',
+        data_class: 'dataClass',
+        min_brief_bytes: 'minBriefBytes',
+        aa_slug: 'aaSlug'
+      }
+      for (const [k, v] of Object.entries(o)) out[rename[k] ?? k] = v
+      return out as unknown as ModelInfo
+    }
+    const toList = (list: unknown, where: string): ModelInfo[] => {
+      if (!Array.isArray(list)) throw new Error(`FANOUT_FAKE_MODELS${where} is not an array`)
+      return list.map(toInfo)
+    }
+    if (Array.isArray(parsed)) {
+      if (this.name !== 'fake') return []
+      return toList(parsed, '')
+    }
+    if (parsed !== null && typeof parsed === 'object') {
+      return toList((parsed as Record<string, unknown>)[this.name] ?? [], `[${this.name}]`)
+    }
+    throw new Error('FANOUT_FAKE_MODELS must be an array or an object')
   }
 
   async preflight(_o?: { quick?: boolean }): Promise<Preflight> {
     if (process.env.FAKE_MISSING === this.name)
       return { ok: false, outcome: 'model_unavailable', detail: 'CLI missing' }
+    const forced = process.env.FAKE_PREFLIGHT
+    if (forced) {
+      const idx = forced.indexOf(':')
+      const harness = idx >= 0 ? forced.slice(0, idx) : forced
+      const outcome = (idx >= 0 ? forced.slice(idx + 1) : 'worker_error') as Outcome
+      if (harness === this.name) {
+        return { ok: false, outcome, detail: `${this.name} fake preflight failed: ${outcome}` }
+      }
+    }
     return { ok: true }
   }
 }

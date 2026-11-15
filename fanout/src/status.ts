@@ -2,9 +2,11 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { formatUsd } from './cost'
 import { loadCatalog } from './catalog'
-import { nowMs } from './clock'
+import { DAY_MS, nowMs } from './clock'
+import { readEvents } from './events'
 import { runDir } from './paths'
-import { chains, readState, type Chain } from './state'
+import { chains, paidTrialKeys, readLearned, readState, smokeSummary, type Chain } from './state'
+import { readStatusJson } from './upkeep/index'
 
 function localHM(ms: number): string {
   const tz = process.env.TZ || 'UTC'
@@ -80,16 +82,83 @@ export function briefLines(now: number): string[] {
     if (chain.hops.length === 0 && !chain.rerouted && chain.paidJobs.length === 0) continue
     lines.push(`UNREPORTED ${chain.finalJob} ${unreportedSummary(chain)} (run: fanout ack ${chain.finalJob})`)
   }
+  lines.push(...upkeepLines(now))
+  lines.push(...discoveryLines())
+  lines.push(...smokeStatusLines(now))
   if (lines.length === 0) return ['fanout: ok']
   return lines
+}
+
+/** Stateless UPKEEP line from the last 24 hours of upkeep events, in time order. */
+export function upkeepLines(now: number): string[] {
+  const events = readEvents(now - DAY_MS)
+  const steps = events
+    .filter((e) => e.event === 'upkeep')
+    .sort((a, b) => String(a.ts).localeCompare(String(b.ts)) || String(a.id).localeCompare(String(b.id)))
+  if (steps.length === 0) return []
+  const starts = events.filter((e) => e.event === 'job_start' && e.caller === 'upkeep')
+  const parts = steps.map((u, i) => {
+    const from = Date.parse(String(u.ts))
+    const next = i + 1 < steps.length ? Date.parse(String(steps[i + 1].ts)) : from + 10 * 60 * 1000
+    const during = starts.find((s) => {
+      const ts = Date.parse(String(s.ts))
+      return Number.isFinite(ts) && Number.isFinite(from) && ts >= from && ts < next
+    })
+    const via =
+      during !== undefined && typeof during.harness === 'string' && typeof during.model === 'string'
+        ? ` via ${String(during.harness)}/${String(during.model)}`
+        : ''
+    return `${String(u.step)} ${String(u.status)}${via}`
+  })
+  return [`UPKEEP (24h): ${parts.join(', ')}`]
 }
 
 export function fullLines(now: number): string[] {
   const lines = briefLines(now)
   const { rows } = loadCatalog()
+  const gone = readLearned().gone
   for (const row of rows) {
-    lines.push(`${row.harness}/${row.model} tier=${row.tier} ${row.status} ${row.billing} ${row.dataClass}`)
+    const key = `${row.harness}/${row.model}`
+    lines.push(`${key} tier=${row.tier} ${row.status} ${row.billing} ${row.dataClass}${gone.has(key) ? ' gone' : ''}`)
   }
+  return lines
+}
+
+function joinedLine(label: string, keys: string[]): string | undefined {
+  if (keys.length === 0) return undefined
+  const shown = keys.slice(0, 5)
+  const more = keys.length > 5 ? ` (+${keys.length - 5} more)` : ''
+  return `${label} ${shown.join(', ')}${more}`
+}
+
+/** SMOKE counts and paid trials awaiting first use. Shown once upkeep has smoked. */
+export function smokeStatusLines(now: number): string[] {
+  const { rows } = loadCatalog()
+  const learned = readLearned()
+  const summary = smokeSummary(rows, learned, now)
+  const lines: string[] = []
+  if (summary.pass > 0 || summary.fail > 0) {
+    lines.push(`SMOKE pass=${summary.pass} fail=${summary.fail} pending=${summary.pending}`)
+  }
+  const paid = paidTrialKeys(rows, learned)
+  if (paid.length > 0) lines.push(`NEW (paid, promoted on first use): ${paid.join(', ')}`)
+  return lines
+}
+/** NEW and GONE lines from the last upkeep's status.json. */
+export function discoveryLines(): string[] {
+  let doc: Record<string, unknown> | undefined
+  try {
+    doc = readStatusJson()
+  } catch {
+    return []
+  }
+  if (!doc) return []
+  const lines: string[] = []
+  const fresh = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+  const added = joinedLine('NEW', fresh(doc.new_models))
+  if (added) lines.push(added)
+  const gone = joinedLine('GONE', fresh(doc.gone_models))
+  if (gone) lines.push(gone)
   return lines
 }
 

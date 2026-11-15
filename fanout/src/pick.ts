@@ -1,8 +1,11 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { type Billing, type CatalogRow, kindInfo } from './catalog'
 import { upstreamClass } from './dataclass'
 import { compareRows } from './rank'
 import { nowMs } from './clock'
-import { coolingOf, isCooling, readState } from './state'
+import { runDir } from './paths'
+import { coolingOf, isCooling, readLearned, readState, trialStanding } from './state'
 
 export interface PickInput {
   kind: string
@@ -26,24 +29,80 @@ export function billingRank(b: Billing): number {
   return 2
 }
 
+/** Chain leases currently holding a trial row: a second job routes elsewhere. */
+export function leasedTrialKeys(): Set<string> {
+  const out = new Set<string>()
+  let files: string[] = []
+  try {
+    files = readdirSync(runDir())
+  } catch {
+    return out
+  }
+  for (const f of files) {
+    if (!f.endsWith('.lease')) continue
+    try {
+      const data = JSON.parse(readFileSync(join(runDir(), f), 'utf8')) as {
+        harness?: unknown
+        model?: unknown
+      }
+      if (
+        typeof data.harness === 'string' &&
+        typeof data.model === 'string' &&
+        data.harness !== '' &&
+        data.model !== ''
+      ) {
+        out.add(`${data.harness}/${data.model}`)
+      }
+    } catch {
+      // unreadable leases are skipped
+    }
+  }
+  return out
+}
+
 export function candidates(rows: CatalogRow[], input: PickInput): Candidate[] {
   const startTier = input.startTier ?? kindInfo(input.kind).tier
-  const state = readState(nowMs())
-  const eligible = rows.filter((row) => {
-    if (row.status !== 'active') return false
-    if (row.tier < startTier) return false
-    if (input.briefBytes < row.minBriefBytes) return false
-    if (input.dataClass === 'private' && row.dataClass === 'public-only') return false
-    if (input.dataClass === 'private' && upstreamClass(input.upstreamOf?.(row)) === 'public-only') {
-      return false
+  const now = nowMs()
+  const state = readState(now)
+  const learned = readLearned()
+  const leased = leasedTrialKeys()
+  const proven: Candidate[] = []
+  const trials: Candidate[] = []
+  for (const row of rows) {
+    const key = `${row.harness}/${row.model}`
+    if (learned.gone.has(key)) continue
+    let display = row
+    if (row.status === 'trial') {
+      const standing = trialStanding(row, learned, now)
+      if (standing === 'hidden') continue
+      if (standing === 'trial-last') {
+        if (leased.has(key)) continue
+      } else {
+        display = { ...row, status: 'active' }
+      }
+    } else if (row.status !== 'active') {
+      continue
     }
-    if (input.noPaid && (row.billing === 'paid' || row.billing === 'per_call')) return false
-    if (!input.includeCooling && isCooling(state, row)) return false
-    return true
-  })
+    if (row.tier < startTier) continue
+    if (input.briefBytes < row.minBriefBytes) continue
+    if (input.dataClass === 'private' && row.dataClass === 'public-only') continue
+    if (input.dataClass === 'private' && upstreamClass(input.upstreamOf?.(row)) === 'public-only') {
+      continue
+    }
+    if (input.noPaid && (row.billing === 'paid' || row.billing === 'per_call')) continue
+    if (!input.includeCooling && isCooling(state, row)) continue
+    const cand = { row: display, effort: row.efforts[0] ?? '' }
+    if (display.status === 'active') proven.push(cand)
+    else trials.push(cand)
+  }
+  proven.sort((a, b) => compareRows(a, b, input.kind))
+  trials.sort((a, b) => compareRows(a, b, input.kind))
+  const tiers = [...new Set([...proven, ...trials].map((c) => c.row.tier))].sort((a, b) => a - b)
+  const withEffort: Candidate[] = tiers.flatMap((t) => [
+    ...proven.filter((c) => c.row.tier === t),
+    ...trials.filter((c) => c.row.tier === t)
+  ])
   const pref = input.harness
-  const withEffort: Candidate[] = eligible.map((row) => ({ row, effort: row.efforts[0] ?? '' }))
-  withEffort.sort((a, b) => compareRows(a, b, input.kind))
   if (pref && withEffort.length > 0) {
     const firstTier = withEffort[0].row.tier
     const idx = withEffort.findIndex((c) => c.row.harness === pref && c.row.tier === firstTier)
@@ -98,9 +157,16 @@ export function nextRung(
   }
 ): Rung | 'top' | undefined {
   const state = readState(nowMs())
+  const learned = readLearned()
+  const now = nowMs()
   const jobRow = rows.find((r) => r.harness === job.harness && r.model === job.model)
   const eligible = (row: CatalogRow): boolean => {
-    if (row.status !== 'active') return false
+    if (learned.gone.has(`${row.harness}/${row.model}`)) return false
+    if (row.status === 'trial') {
+      if (trialStanding(row, learned, now) === 'hidden') return false
+    } else if (row.status !== 'active') {
+      return false
+    }
     if (o.briefBytes < row.minBriefBytes) return false
     if (o.dataClass === 'private' && row.dataClass === 'public-only') return false
     if (o.dataClass === 'private' && upstreamClass(o.upstreamOf?.(row)) === 'public-only') return false
