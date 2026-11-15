@@ -1,0 +1,2 @@
+# synthetic test fixture (not real CLI output)
+{"type":"error","message":"boom"}

@@ -88,6 +88,15 @@ export function parseReset(text: string, nowMs: number): number | undefined {
     const minutes = again[2] !== undefined ? Number(again[2]) : 0
     if (hours > 0 || minutes > 0) return nowMs + (hours * 3600 + minutes * 60) * 1000
   }
+  const againAt = /try again at (\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(text)
+  if (againAt) {
+    let hour = Number(againAt[1])
+    const minute = Number(againAt[2])
+    const meridiem = againAt[3].toUpperCase()
+    if (meridiem === 'PM' && hour < 12) hour += 12
+    if (meridiem === 'AM' && hour === 12) hour = 0
+    if (hour <= 23 && minute <= 59) return clockResetMs(hour, minute, nowMs)
+  }
   const inHow = /resets?\s+in\s+(?:(\d+)\s*h(?:ours?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?/i.exec(text)
   if (inHow && (inHow[1] !== undefined || inHow[2] !== undefined)) {
     const hours = inHow[1] !== undefined ? Number(inHow[1]) : 0
