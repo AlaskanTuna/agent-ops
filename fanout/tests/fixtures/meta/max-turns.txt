@@ -1,0 +1,1 @@
+{"type":"result","subtype":"error_max_turns","is_error":true,"result":"stopped at the turn cap","total_cost_usd":1.5,"modelUsage":{"muse-spark-1.3-contributor":{"inputTokens":100,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"outputTokens":50}},"permission_denials":[]}

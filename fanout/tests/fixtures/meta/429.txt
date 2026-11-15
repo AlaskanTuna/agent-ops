@@ -1,0 +1,1 @@
+{"type":"result","subtype":"error","is_error":true,"api_error_status":429,"result":"API Error: 429 Too Many Requests (150 requests a minute per team)","modelUsage":{},"permission_denials":[]}

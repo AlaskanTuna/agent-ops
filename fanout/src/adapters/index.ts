@@ -1,6 +1,7 @@
 import type { Adapter, BuildInput, BuiltCommand, Classified, RunOutput, Usage } from './types'
 import { SkipCandidate } from './types'
 import { FakeAdapter } from './fake'
+import { MetaAdapter } from './meta'
 
 class UnwiredAdapter implements Adapter {
   readonly name: string
@@ -33,6 +34,9 @@ class UnwiredAdapter implements Adapter {
 export function adapterFor(harness: string): Adapter {
   if (harness === 'fake' || harness === 'fake2' || harness === 'fake3') {
     return new FakeAdapter(harness)
+  }
+  if (harness === 'meta') {
+    return new MetaAdapter()
   }
   return new UnwiredAdapter(harness)
 }

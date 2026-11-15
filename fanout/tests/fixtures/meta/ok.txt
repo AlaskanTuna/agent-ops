@@ -1,0 +1,1 @@
+{"type":"result","subtype":"success","is_error":false,"result":"done","total_cost_usd":9.99,"modelUsage":{"muse-spark-1.3-contributor":{"inputTokens":1000000,"cacheReadInputTokens":2000000,"cacheCreationInputTokens":0,"outputTokens":100000}},"permission_denials":[]}
