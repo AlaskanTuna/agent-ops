@@ -2,6 +2,7 @@
 
 - agent-ops is a local operations platform for every agent harness on one machine: fanout routing and its ledger first, then DuckDB audits over each harness's own data. The design lives in [docs/superpowers/specs](/docs/superpowers/specs/).
 - Refer to [markdown-style.md](/docs/references/markdown-style.md) before creating markdowns, root README.md bypass this rule.
+- Keep the README free of checkboxes, roadmaps and TODO lists; planned work lives only on the GitHub issues page.
 - File every follow-up as a GitHub issue per [issue-tracker.md](/docs/agents/issue-tracker.md) and link it in your reply, instead of printing it to the terminal or leaving a checklist.
 - Title commits, issues and PRs as Conventional Commits headers of at most 50 characters that pass [commitlint.config.mjs](/commitlint.config.mjs), checked with `echo "<title>" | bunx commitlint`. Squash merges append ` (#N)` to PR titles, so check those as `echo "<title> (#N)" | bunx commitlint`.
 - This repo is public. Keep runtime data, ledger events, transcripts, keys and personal paths out of it; runtime data lives under `~/.local/share/agent-ops/`.
