@@ -1,9 +1,9 @@
-import { existsSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync, appendFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { readStartTicks } from './exec'
 import { readEvents, type FanoutEvent } from './events'
 import { leasePath } from './lease'
-import { runDir } from './paths'
+import { runDir, dataDir } from './paths'
 import { LEDGER_WINDOW_MS } from './clock'
 
 export interface Cooldown {
@@ -362,4 +362,153 @@ export function backoffUntil(harness: string, model: string, scope: 'model' | 'a
     }
   }
   return now + Math.min(4 * 3600 * 1000, 15 * 60 * 1000 * 2 ** k)
+}
+
+/** Append one line to a learned/ file. Fail-open: learned state never breaks a run. */
+export function appendLearned(file: string, line: Record<string, unknown>): void {
+  try {
+    mkdirSync(join(dataDir(), 'learned'), { recursive: true, mode: 0o700 })
+    appendFileSync(join(dataDir(), 'learned', file), JSON.stringify(line) + '\n')
+  } catch {
+    // learned lines never break a run
+  }
+}
+
+export interface SmokeRecord {
+  result: string
+  ts: number
+}
+
+export interface FirstUseRecord {
+  result: string
+  ts: number
+}
+
+export interface LearnedState {
+  /** Keys whose last gone/back line is gone: routing skips them. */
+  gone: Set<string>
+  /** Last smoke result per <harness>/<model>. */
+  smoke: Map<string, SmokeRecord>
+  /** Last first-use result per <harness>/<model>. */
+  firstUse: Map<string, FirstUseRecord>
+  /** Accepted/total judged jobs per <harness>/<model>; the last verdict per job wins. */
+  judged: Map<string, { accepted: number; total: number }>
+}
+
+function learnedLines(file: string): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = []
+  let text: string
+  try {
+    text = readFileSync(join(dataDir(), 'learned', file), 'utf8')
+  } catch {
+    return out
+  }
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    try {
+      out.push(JSON.parse(line) as Record<string, unknown>)
+    } catch {
+      // corrupt lines are skipped
+    }
+  }
+  return out
+}
+
+/** Read learned/state.jsonl. The last line per (kind, key) wins; judged is keyed by job. */
+export function readLearned(): LearnedState {
+  const gone = new Set<string>()
+  const back = new Set<string>()
+  const smoke = new Map<string, SmokeRecord>()
+  const firstUse = new Map<string, FirstUseRecord>()
+  const judgedByJob = new Map<string, { key: string; accepted: boolean }>()
+  for (const l of learnedLines('state.jsonl')) {
+    if (typeof l.key !== 'string' || l.kind === undefined) continue
+    const ts = Date.parse(String(l.ts))
+    if (l.kind === 'gone') {
+      gone.add(l.key)
+      back.delete(l.key)
+    } else if (l.kind === 'back') {
+      back.add(l.key)
+      gone.delete(l.key)
+    } else if (l.kind === 'smoke' && typeof l.result === 'string' && Number.isFinite(ts)) {
+      smoke.set(l.key, { result: l.result, ts })
+    } else if (l.kind === 'first_use' && typeof l.result === 'string' && Number.isFinite(ts)) {
+      firstUse.set(l.key, { result: l.result, ts })
+    } else if (l.kind === 'judged' && typeof l.job === 'string' && typeof l.accepted === 'boolean') {
+      judgedByJob.set(l.job, { key: l.key, accepted: l.accepted })
+    }
+  }
+  void back
+  const judged = new Map<string, { accepted: number; total: number }>()
+  for (const { key, accepted } of judgedByJob.values()) {
+    const cur = judged.get(key) ?? { accepted: 0, total: 0 }
+    cur.total += 1
+    if (accepted) cur.accepted += 1
+    judged.set(key, cur)
+  }
+  return { gone, smoke, firstUse, judged }
+}
+
+import type { CatalogRow } from './catalog'
+
+export const SMOKE_RETRY_MS = 7 * 24 * 3600 * 1000
+const GRADUATE_JUDGED = 5
+
+/** Routing standing of a trial row. */
+export type TrialStanding = 'promoted' | 'trial-last' | 'hidden'
+
+/**
+ * A trial row is routable when it is `active` (default or private catalog),
+ * has a smoke pass, has a first_use pass, or has 5 accepted judged lines.
+ * Promoted rows rank as active; the rest stay last in their tier.
+ */
+export function trialStanding(row: CatalogRow, learned: LearnedState, now: number): TrialStanding {
+  const key = `${row.harness}/${row.model}`
+  const fu = learned.firstUse.get(key)
+  if (fu?.result === 'pass') return 'promoted'
+  if (fu?.result === 'fail' && now - fu.ts < SMOKE_RETRY_MS) return 'hidden'
+  const judged = learned.judged.get(key)
+  if ((judged?.accepted ?? 0) >= GRADUATE_JUDGED) return 'promoted'
+  const sm = learned.smoke.get(key)
+  if (sm?.result === 'pass') return 'trial-last'
+  if (row.billing === 'paid') return 'trial-last'
+  return 'hidden'
+}
+
+export interface SmokeSummary {
+  pass: number
+  fail: number
+  pending: number
+}
+
+/** Counts for `status`: current pass/fail plus trial rows still needing a smoke. */
+export function smokeSummary(rows: CatalogRow[], learned: LearnedState, now: number): SmokeSummary {
+  let pass = 0
+  let fail = 0
+  let pending = 0
+  for (const row of rows) {
+    if (row.status !== 'trial') continue
+    if (row.billing !== 'free' && row.billing !== 'subscription' && row.billing !== 'per_call') continue
+    if (learned.gone.has(`${row.harness}/${row.model}`)) continue
+    if (trialStanding(row, learned, now) === 'promoted') continue
+    const sm = learned.smoke.get(`${row.harness}/${row.model}`)
+    if (sm?.result === 'pass') pass += 1
+    else if (sm?.result === 'fail' && now - sm.ts < SMOKE_RETRY_MS) fail += 1
+    else pending += 1
+  }
+  return { pass, fail, pending }
+}
+
+/** Trial paid rows that promote on first real use. */
+export function paidTrialKeys(rows: CatalogRow[], learned: LearnedState): string[] {
+  return rows
+    .filter(
+      (r) =>
+        r.status === 'trial' &&
+        r.billing === 'paid' &&
+        !learned.gone.has(`${r.harness}/${r.model}`) &&
+        learned.firstUse.get(`${r.harness}/${r.model}`)?.result !== 'pass'
+    )
+    .map((r) => `${r.harness}/${r.model}`)
+    .sort()
 }

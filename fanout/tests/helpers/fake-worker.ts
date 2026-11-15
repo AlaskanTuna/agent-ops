@@ -82,6 +82,16 @@ async function main(): Promise<number> {
       process.stdout.write('done\n')
       usage()
       return 0
+    case 'smoke_ok':
+      writeFileSync('smoke.txt', 'fanout-smoke-ok\n')
+      process.stdout.write('done\n')
+      usage()
+      return 0
+    case 'smoke_wrong':
+      writeFileSync('smoke.txt', 'wrong\n')
+      process.stdout.write('done\n')
+      usage()
+      return 0
     case 'worker_crash':
       process.stderr.write('worker crashed: context canceled\n')
       return 1

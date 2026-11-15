@@ -1,4 +1,5 @@
 import { VERSION } from './version'
+import { maybeLazyUpkeep } from './upkeep/lazy'
 
 export type Handler = (args: string[]) => number | Promise<number>
 
@@ -17,6 +18,8 @@ async function loadCommands(): Promise<void> {
   await import('./commands/ack')
   await import('./commands/verdict')
   await import('./commands/hook')
+  await import('./commands/upkeep')
+  await import('./commands/doctor')
 }
 
 function usage(): string {
@@ -41,6 +44,7 @@ async function main(): Promise<number> {
     console.error(usage())
     return 2
   }
+  if (name !== 'upkeep') await maybeLazyUpkeep()
   return await cmd(rest)
 }
 
