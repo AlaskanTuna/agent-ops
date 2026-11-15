@@ -42,7 +42,7 @@ function stubSystemctl(home: string, exitCode: number): { log: string } {
 function inst(
   build: string,
   home: string,
-  opts: { noSystemd?: boolean; path?: string } = {}
+  opts: { noSystemd?: boolean; path?: string; dryRun?: boolean } = {}
 ): { code: number; stdout: string; stderr: string } {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
@@ -51,7 +51,7 @@ function inst(
   }
   if (opts.noSystemd !== false) env.FANOUT_INSTALL_NO_SYSTEMD = '1'
   else delete env.FANOUT_INSTALL_NO_SYSTEMD
-  const p = Bun.spawnSync(['bash', join(build, 'install.sh')], {
+  const p = Bun.spawnSync(['bash', join(build, 'install.sh'), ...(opts.dryRun ? ['--dry-run'] : [])], {
     env,
     stdout: 'pipe',
     stderr: 'pipe'
@@ -125,4 +125,15 @@ test('a failing systemctl is not fatal', () => {
   const r = inst(build, home, { noSystemd: false })
   expect(r.code).toBe(0)
   expect(r.stdout).toMatch(/^WARN /m)
+})
+
+test('a dry run never calls systemctl or writes units', () => {
+  const home = tmpHome()
+  const build = makeBuild(home)
+  const { log } = stubSystemctl(home, 0)
+  const r = inst(build, home, { noSystemd: false, dryRun: true })
+  expect(r.code, r.stderr).toBe(0)
+  expect(r.stdout).toMatch(/^RUN systemctl --user enable --now fanout-upkeep.timer$/m)
+  expect(Bun.spawnSync(['test', '-e', log]).exitCode).not.toBe(0)
+  expect(Bun.spawnSync(['test', '-e', join(home, '.config/systemd/user/fanout-upkeep.timer')]).exitCode).not.toBe(0)
 })

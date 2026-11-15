@@ -143,17 +143,22 @@ if [ "${FANOUT_INSTALL_NO_SYSTEMD:-0}" != 1 ]; then
   make_dir "$HOME/.config/systemd/user" ""
   if [ -f "$BUILD/systemd/fanout-upkeep.service" ]; then
     say_edit "$HOME/.config/systemd/user/fanout-upkeep.service"
-    cp "$BUILD/systemd/fanout-upkeep.service" "$HOME/.config/systemd/user/fanout-upkeep.service"
+    [ "$DRY" = 1 ] || cp "$BUILD/systemd/fanout-upkeep.service" "$HOME/.config/systemd/user/fanout-upkeep.service"
   else
     echo "WARN install: no systemd units in $BUILD; skipped" >&2
   fi
   if [ -f "$BUILD/systemd/fanout-upkeep.timer" ]; then
     say_edit "$HOME/.config/systemd/user/fanout-upkeep.timer"
-    cp "$BUILD/systemd/fanout-upkeep.timer" "$HOME/.config/systemd/user/fanout-upkeep.timer"
+    [ "$DRY" = 1 ] || cp "$BUILD/systemd/fanout-upkeep.timer" "$HOME/.config/systemd/user/fanout-upkeep.timer"
   fi
+  if [ "$DRY" = 1 ]; then
+    echo "RUN systemctl --user daemon-reload"
+    echo "RUN systemctl --user enable --now fanout-upkeep.timer"
+  else
   # shellcheck disable=SC2312
   systemctl --user daemon-reload || echo "WARN install: systemctl --user daemon-reload failed; enable the timer by hand"
   # shellcheck disable=SC2312
   systemctl --user enable --now fanout-upkeep.timer ||
     echo "WARN install: systemctl --user enable --now fanout-upkeep.timer failed; enable the timer by hand"
+  fi
 fi
