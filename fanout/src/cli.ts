@@ -12,6 +12,7 @@ async function loadCommands(): Promise<void> {
   await import('./commands/pick')
   await import('./commands/run')
   await import('./commands/wait')
+  await import('./commands/report')
 }
 
 function usage(): string {
