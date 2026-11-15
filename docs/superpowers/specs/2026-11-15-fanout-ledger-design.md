@@ -64,14 +64,14 @@ The user accepted A on 2026-11-15.
 
 ### Layout
 
-| Path                                         | What                                                                                        | Owner   |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------- | ------- |
-| `~/CS/fanout-ledger/`                        | Git repo: CLI source, adapters, shipped error patterns, manual catalog, tests, this spec    | Code    |
-| `~/.agents/bin/fanout`                       | Symlink to the CLI entry point. `~/.agents/bin` gets added to PATH in the shell profile     | Install |
-| `~/.agents/skills/fanout/`                   | The one shared skill, distributed by `sync-harnesses.sh`                                    | Install |
-| `~/.local/share/fanout/events/YYYY-MM.jsonl` | The ledger. Append-only, one JSON object per line                                           | Runtime |
-| `~/.local/share/fanout/learned/`             | Auto-learned error patterns and auto catalog entries                                        | Runtime |
-| `~/.agents/docs/24-fanout-ledger.md`         | Technical and maintenance doc, linked from `08-fanout.md` and the CLAUDE.md Documents table | Docs    |
+| Path                                                                          | What                                                                                        | Owner   |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------- |
+| `~/CS/agent-ops/` (umbrella repo; fanout is the first module under `fanout/`) | Git repo: CLI source, adapters, shipped error patterns, manual catalog, tests, this spec    | Code    |
+| `~/.agents/bin/fanout`                                                        | Symlink to the CLI entry point. `~/.agents/bin` gets added to PATH in the shell profile     | Install |
+| `~/.agents/skills/fanout/`                                                    | The one shared skill, distributed by `sync-harnesses.sh`                                    | Install |
+| `~/.local/share/agent-ops/fanout/events/YYYY-MM.jsonl`                        | The ledger. Append-only, one JSON object per line                                           | Runtime |
+| `~/.local/share/agent-ops/fanout/learned/`                                    | Auto-learned error patterns and auto catalog entries                                        | Runtime |
+| `~/.agents/docs/24-fanout-ledger.md`                                          | Technical and maintenance doc, linked from `08-fanout.md` and the CLAUDE.md Documents table | Docs    |
 
 ### The CLI (`fanout`, Bun, TypeScript)
 
@@ -207,7 +207,7 @@ Steps, each independent and logged as an `upkeep` event:
 3. Benchmarks: refresh from Artificial Analysis, Arena WebDev and FrontierCode 2.0 when the newest snapshot is over 7
    days old. Extraction is done by a cheap worker through `fanout run` on public data. Failure keeps the old values.
 4. Learn patterns from repeated unknown errors.
-5. Write `~/.local/share/fanout/status.json` for fast reads.
+5. Write `~/.local/share/agent-ops/fanout/status.json` for fast reads.
 
 Nothing in upkeep asks the user. Results surface through `fanout status --brief`.
 
@@ -246,11 +246,11 @@ unknown error, timeout) so fallback, cooldown and reporting are tested without s
   base commit per attempt; a failed attempt's worktree is kept for inspection and removed by upkeep after 7 days. Outside
   git: fall back only when the failed attempt changed no files; otherwise stop and report.
 - **Concurrency:** `run` is a blocking, foreground command, one per chunk. Running jobs hold a lease file (PID + heartbeat)
-  in `~/.local/share/fanout/run/`. A lease with a dead PID is stale and ignored; its job is logged as `worker_error`.
+  in `~/.local/share/agent-ops/fanout/run/`. A lease with a dead PID is stale and ignored; its job is logged as `worker_error`.
 - **Upkeep never spends paid credit.** It may use only `free` or `subscription` models. Anything it did is listed by
   `fanout status --brief` at the next session.
 - **`--model` is a starting point, not a pin.** Fallback still applies and is reported. `--pin` forbids fallback.
-- **The repo starts fresh** with `git init` and no remote.
+- **The repo** is public at github.com/AlaskanTuna/agent-ops (renamed from fanout-ledger).
 
 ## User answers (2026-11-15)
 
@@ -275,3 +275,77 @@ unknown error, timeout) so fallback, cooldown and reporting are tested without s
 - Per-kind default token priors for cost estimates.
 - Whether codex exposes remaining quota. If it does, add a proactive probe to its adapter.
 - File and module names inside the repo.
+
+## Review revisions (Fable consultant, 2026-11-15)
+
+The consultant ruled the design feasible after fixes. These revisions override any earlier section they contradict.
+
+### Blockers fixed
+
+1. **Report timing.** A job chain counts as unreported only after its final `job_end`. `fanout ack` is refused while a
+   lease for the chain is alive. The Stop hook checks finished chains only.
+2. **Long jobs.** `fanout run --detach` starts the chain and returns the job id at once; `fanout wait <job>` blocks for up
+   to 9 minutes and can be called again. The lease stores the worker process group. `run` traps SIGTERM and SIGINT and
+   kills the group. The reaper kills the group of a stale lease and computes cost from the worker log, so an orphan
+   always gets a `COST` line.
+3. **Data class from the upstream model.** For proxied harnesses (claude-fanout, river, modelscope), the data class is
+   read from the upstream model name in the CLIProxyAPI config, not the alias. Unknown OpenRouter rows default to
+   `public-only`. A test covers the `muse-spark-1.3` alias that maps to `muse-spark-1.3-contributor`.
+4. **Hooks in `$HOME`.** The two session-keyed fanout hooks (Stop, SessionStart) keep the empty-context guard but drop
+   the `$HOME` guard. `~/.agents/docs/06-hooks.md` records the exception and why.
+5. **Pre-start reroute.** `run` prints a `FALLBACK` line whenever the model it starts differs from the model the user
+   approved. `run --expect <harness>/<model>` carries the approved model from `pick`.
+
+### Other fixes
+
+- New outcome `job_error` (context length, 413, 422, turn cap): no cooldown and no sideways fallback; the chain stops
+  and reports. Backoff counts at most one `limit_hit` per model per 60 seconds.
+- Ranking within a tier: billing type, then estimated job cost (paid rows), then benchmark score on metrics both rows
+  share, then success rate.
+- Workers get an environment allowlist, not the caller's whole environment. `FANOUT_DEPTH` is set; a nested `run` is
+  refused. agy runs with `--disable-slash-commands`.
+- Go-live is the last task: docs, policy, hooks and PATH come after all code, and the installed CLI is a built copy,
+  not the working checkout.
+- The old `*-fanout` skills stay intact. Each gets one pointer line to `fanout run`.
+- `model_gone`, trial graduation and learned patterns persist in `learned/`, so they survive the 30-day read window.
+- New outcome `no_effect`: a writing kind that ends `ok` but changed no file.
+- Every `FALLBACK` and `COST` line is also sent as a desktop notification (fail-open; WSL toast support to verify).
+- The user's own catalog overrides and tiers live in `~/.config/agent-ops/catalog.csv`. The repo ships only
+  `catalog.default.csv` with public data.
+
+### Rulings on the plan's open questions
+
+1. Paid estimate: `pick` prints the estimate of the first paid candidate in the chain, and the dispatch question
+   quotes it. The user hears a number before any spend.
+2. agy climbs effort before tier: Hydrogen `medium` → Hydrogen `xhigh` → Argon `high`. Catalog rows carry an ordered
+   `climb` list.
+3. Benchmarks: see below. No HTML scraping.
+4. New paid models: no manual smoke test. A new paid model is promoted on first real use, as the last candidate of its
+   tier, one job at a time. Upkeep still spends nothing.
+
+### Benchmarks
+
+- **Artificial Analysis Data API** (free tier, `GET https://artificialanalysis.ai/api/v2/language/models`, header
+  `x-api-key` from `AA_API_KEY` in `~/.config/tolong/secrets.env`). Upkeep refreshes daily. It supplies the
+  Intelligence Index and input/output prices, matched by slug through a `aa_slug` catalog column. Free-tier use requires
+  attribution to artificialanalysis.ai in the README. Missing key or API error: keep old values, report in `status`.
+- **Arena WebDev and FrontierCode 2.0** have no API. `fanout benchmarks import <file>` loads a CSV an agent produces on
+  request. They are never fetched by the timer.
+- **The user's own results win over time.** After 20 judged jobs for a model and task kind, the ledger's success rate
+  and cost per accepted job outrank benchmark scores for that pair.
+
+### Error patterns and learning (kept from day 1)
+
+- **Seed from history.** Before go-live, a one-off DuckDB query over the user's Claude Code transcripts pairs fanout
+  launch commands with their tool results and extracts real limit and error texts per harness. The texts become shipped
+  patterns and test fixtures (scrubbed of ids and paths).
+- **Learning guardrails.** The error signature skips a denylist of known harmless lines (such as
+  `[claude-code:unrecognized_model]`). Learned patterns rank below the built-in limit rules, never above. A pattern is
+  adopted after 3 matches across 2 or more jobs, and expires after 60 days with no match.
+
+### Cut
+
+- HTML benchmark scraping (blocked by bot walls; untrusted text into a worker).
+- `cost_source: reported` (no adapter reports a cost).
+- `bun:ffi` flock. Plain `O_APPEND` writes are used: 6 concurrent processes writing 12,000 lines of 3 KB each produced 0
+  corrupt lines on this machine (2026-11-15). Readers still skip corrupt lines.
