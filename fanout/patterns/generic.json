@@ -1,6 +1,11 @@
 {
   "rules": [
     {
+      "id": "gen-job",
+      "re": "context.length|context_length_exceeded|prompt is too long|\\b413\\b|\\b422\\b|error_max_turns|max.turns",
+      "outcome": "job_error"
+    },
+    {
       "id": "gen-429",
       "re": "\\b429\\b|rate.?limit|too many requests",
       "outcome": "rate_limited"
@@ -31,6 +36,11 @@
       "re": "overloaded|model_concurrency|\\b503\\b",
       "outcome": "rate_limited",
       "cooldownS": 30
+    },
+    {
+      "id": "gen-worker",
+      "re": "context canceled|worker crashed|segmentation fault",
+      "outcome": "worker_error"
     }
   ]
 }

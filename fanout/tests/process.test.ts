@@ -67,7 +67,8 @@ test('a timeout kills the whole process group', async () => {
     expect((err as NodeJS.ErrnoException).code).toBe('ESRCH')
   }
   expect(threw).toBe(true)
-  expect(r.code).toBe(1)
+  expect(r.code).toBe(0)
+  expect(r.stdout).toContain('FALLBACK fake/f1-a timeout -> fake/f1-b.')
 })
 
 test('the worker environment is the allowlist and nothing else', async () => {

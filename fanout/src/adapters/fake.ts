@@ -40,14 +40,24 @@ export class FakeAdapter implements Adapter {
     const counters = readCounters()
     const idx = counters[key] ?? 0
     const scenario = list ? list[Math.min(idx, list.length - 1)] : 'ok'
-    counters[key] = idx + 1
-    writeCounters(counters)
+    if (process.env.FANOUT_DRYRUN !== '1') {
+      counters[key] = idx + 1
+      writeCounters(counters)
+    }
     const worker = process.env.FANOUT_FAKE_WORKER ?? join(import.meta.dir, '../../tests/helpers/fake-worker.ts')
+    const argv = ['bun', worker, scenario, i.briefPath, '--max-turns', String(i.maxTurns)]
+    for (const a of i.allow) argv.push('--allow', a)
+    const secrets: string[] = []
+    const fakeSecret = process.env.FAKE_SECRET
+    if (fakeSecret) {
+      secrets.push(fakeSecret)
+      argv.push('--token', fakeSecret)
+    }
     return {
-      argv: ['bun', worker, scenario, i.briefPath],
+      argv,
       cwd: i.cwd,
       env: {},
-      secrets: [],
+      secrets,
       reportPath: undefined
     }
   }

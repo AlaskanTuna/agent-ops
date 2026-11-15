@@ -62,14 +62,14 @@ test('credits and auth are account scope; model errors are model scope', async (
   }
 }, 60000)
 
-test('unknown errors record no limit', async () => {
+test('a repeated unknown records a backoff limit', async () => {
   const sb = sandbox().at('2026-11-15T01:00:00Z')
   sb.script({ 'fake/f1-a': ['unknown_error'] })
   await sb.fanout(RUN(sb))
-  const end = sb.ledger().find((e) => e.event === 'job_end')
-  expect(end).toMatchObject({ outcome: 'unknown' })
-  expect(end && 'pattern' in end && end.pattern).toBeFalsy()
-  expect(sb.ledger().find((e) => e.event === 'limit_hit')).toBeUndefined()
+  const ends = sb.ledger().filter((e) => e.event === 'job_end')
+  expect(ends[0]).toMatchObject({ outcome: 'unknown' })
+  expect(ends[0] && 'pattern' in ends[0] && ends[0].pattern).toBeFalsy()
+  expect(sb.ledger().find((e) => e.event === 'limit_hit')).toMatchObject({ source: 'backoff' })
 }, 30000)
 
 test('exit 0 that mentions 429 stays ok', async () => {

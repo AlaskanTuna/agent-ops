@@ -31,6 +31,7 @@ async function main(): Promise<number> {
       usage()
       return 0
     case 'ok_mentions_429':
+      writeOutputs()
       process.stdout.write('see the 429 Too Many Requests section\n')
       usage()
       return 0
@@ -54,6 +55,16 @@ async function main(): Promise<number> {
       return 1
     case 'unknown_error':
       process.stderr.write('kaboom 42\n')
+      return 1
+    case 'job_error_ctx':
+      process.stderr.write('context_length_exceeded: prompt is too long\n')
+      return 1
+    case 'ok_no_write':
+      process.stdout.write('done\n')
+      usage()
+      return 0
+    case 'worker_crash':
+      process.stderr.write('worker crashed: context canceled\n')
       return 1
     case 'custom_error':
       process.stderr.write(`${process.env.FAKE_STDERR ?? ''}\n`)
@@ -96,6 +107,7 @@ async function main(): Promise<number> {
             .map(([k, v]) => `${k}=${v}`)
             .join('\n') + '\n'
         )
+      writeOutputs()
       process.stdout.write('done\n')
       usage()
       return 0
@@ -110,6 +122,7 @@ async function main(): Promise<number> {
         stderr: 'pipe'
       })
       if (out) writeFileSync(out, p.stdout.toString())
+      writeOutputs()
       process.stdout.write('done\n')
       usage()
       return 0

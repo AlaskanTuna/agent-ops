@@ -1,9 +1,9 @@
 import { existsSync, statSync } from 'node:fs'
 import { kindInfo, loadCatalog } from '../catalog'
 import { adapterFor } from '../adapters/index'
-import { chunkClass, upstreamClass } from '../dataclass'
+import { chunkClass, rowClass, upstreamClass } from '../dataclass'
 import { estimate, formatUsd } from '../cost'
-import { candidates } from '../pick'
+import { candidates, resolveModel } from '../pick'
 import { registerCommand } from '../cli'
 
 function usage(): string {
@@ -18,6 +18,7 @@ export async function runPick(rawArgs: string[]): Promise<number> {
   let tier: number | undefined
   let all = false
   let maxTurns = 8
+  let model: string | undefined
   const args = [...rawArgs]
   while (args.length > 0) {
     const a = args.shift()
@@ -25,6 +26,7 @@ export async function runPick(rawArgs: string[]): Promise<number> {
     else if (a === '--dir') dir = args.shift() ?? dir
     else if (a === '--kind') kind = args.shift() ?? ''
     else if (a === '--harness') harness = args.shift() ?? ''
+    else if (a === '--model') model = args.shift() ?? ''
     else if (a === '--tier') {
       const t = Number(args.shift() ?? '')
       if (t !== 1 && t !== 2 && t !== 3) {
@@ -33,7 +35,7 @@ export async function runPick(rawArgs: string[]): Promise<number> {
       }
       tier = t
     } else if (a === '--all') all = true
-    else if (a === '--public' || a === '--private') continue
+    else if (a === '--public' || a === '--private' || a === '--no-paid') continue
     else if (a === '--max-turns') maxTurns = Number(args.shift() ?? '')
     else {
       console.error(usage())
@@ -59,14 +61,35 @@ export async function runPick(rawArgs: string[]): Promise<number> {
   for (const w of warnings) console.error(w)
   const upstreamOf = (row: { harness: string; model: string }) => adapterFor(row.harness).upstream?.(row.model)
   const actualClass = sawPublic ? 'public' : sawPrivate ? 'private' : chunkClass(dir)
+  const noPaid = rawArgs.includes('--no-paid')
+  if (model) {
+    const resolved = resolveModel(rows, model, harness)
+    if (!resolved) {
+      console.error(`unknown model ${model}`)
+      return 2
+    }
+    if (actualClass === 'private' && rowClass(resolved, adapterFor(resolved.harness)) === 'public-only') {
+      console.log(`REFUSED ${resolved.harness}/${resolved.model} is public-only and this chunk is private`)
+      return 3
+    }
+  }
   const list = candidates(rows, {
     kind,
     startTier: tier,
     harness,
     briefBytes,
     dataClass: actualClass,
+    noPaid,
     upstreamOf
   })
+  if (model) {
+    const resolved = resolveModel(rows, model, harness)
+    if (resolved) {
+      const idx = list.findIndex((c) => c.row.harness === resolved.harness && c.row.model === resolved.model)
+      if (idx >= 0) list.splice(idx, 1)
+      list.unshift({ row: resolved, effort: resolved.efforts[0] ?? '' })
+    }
+  }
   if (list.length === 0) {
     if (actualClass === 'private') {
       const startTier = tier ?? kindInfo(kind).tier
