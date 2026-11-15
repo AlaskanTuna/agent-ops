@@ -1,0 +1,31 @@
+{
+  "rules": [
+    {
+      "id": "codex-usage-limit",
+      "re": "hit your usage limit|usage limit",
+      "outcome": "quota_exhausted",
+      "scope": "account"
+    },
+    {
+      "id": "codex-login",
+      "re": "not logged in|please log in|codex login",
+      "outcome": "auth_error"
+    },
+    {
+      "id": "codex-model",
+      "re": "unknown model|model .* not found",
+      "outcome": "model_unavailable"
+    },
+    {
+      "id": "codex-context",
+      "re": "context window|maximum context length",
+      "outcome": "job_error"
+    },
+    {
+      "id": "codex-error-event",
+      "re": "\"type\":\"error\"",
+      "outcome": "worker_error",
+      "onExit0": true
+    }
+  ]
+}
