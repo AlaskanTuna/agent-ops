@@ -17,14 +17,9 @@ export interface SmokeResult {
   detail: string
 }
 
-const LIMIT_OUTCOMES = new Set([
-  'rate_limited',
-  'quota_exhausted',
-  'credits_exhausted',
-  'auth_error',
-  'timeout',
-  'model_unavailable'
-])
+const LIMIT_OUTCOMES = new Set(['rate_limited', 'quota_exhausted', 'credits_exhausted', 'auth_error', 'timeout'])
+// model_unavailable is not a limit: the job reached the provider and the
+// model could not serve it, so the smoke fails and waits 7 days.
 
 function smokeOutcomeToResult(outcome: string | undefined): 'pass-check' | 'skipped' | 'fail' {
   if (outcome === 'ok') return 'pass-check'

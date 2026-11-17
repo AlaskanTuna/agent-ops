@@ -69,6 +69,19 @@ test('a wrong smoke fails and is not retried for 7 days', async () => {
   expect(smokeEvents(sb)).toHaveLength(2)
 }, 60000)
 
+test('an unavailable model fails the smoke and waits 7 days', async () => {
+  const sb = sandbox().at(BASE)
+  sb.catalogPrivate(NO_PAID)
+  sb.script({ 'fake3/f1-trial': ['model_unavailable'] })
+  await smokeOnly(sb)
+  const ev = smokeEvents(sb)
+  expect(ev).toHaveLength(1)
+  expect(ev[0]).toMatchObject({ result: 'fail', detail: 'outcome model_unavailable' })
+  sb.at('2026-11-18T01:00:00Z')
+  await smokeOnly(sb)
+  expect(smokeEvents(sb)).toHaveLength(1)
+}, 60000)
+
 test('a limit is skipped and tried again', async () => {
   const sb = sandbox().at(BASE)
   sb.catalogPrivate(NO_PAID)
