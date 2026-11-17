@@ -61,6 +61,7 @@ test('the build argv is the documented array', () => {
     '--ignore-user-config',
     '--ignore-rules',
     '--ephemeral',
+    '--skip-git-repo-check',
     '--sandbox',
     'workspace-write',
     '--json',

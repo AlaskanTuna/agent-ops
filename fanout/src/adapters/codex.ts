@@ -24,7 +24,8 @@ export class CodexAdapter implements Adapter {
   build(i: BuildInput): BuiltCommand {
     const argv = ['codex', 'exec', '-C', i.cwd, '-m', i.model]
     if (i.effort) argv.push('-c', `model_reasoning_effort=${i.effort}`)
-    argv.push('--ignore-user-config', '--ignore-rules', '--ephemeral')
+    // Smoke runs in a plain directory, not a git repo; codex refuses those without this.
+    argv.push('--ignore-user-config', '--ignore-rules', '--ephemeral', '--skip-git-repo-check')
     if (i.bypass) argv.push('--dangerously-bypass-approvals-and-sandbox')
     else argv.push('--sandbox', 'workspace-write')
     const reportPath = join(i.outDir, `${i.job}.report.md`)
