@@ -269,6 +269,10 @@ export function loadCatalog(): LoadedCatalog {
         }
         rows.set(key, { row: parsed.row, specLayer: layer })
       } else {
+        const t = (r.tier ?? '').trim()
+        if (t !== '' && t !== '1' && t !== '2' && t !== '3') {
+          warnings.push(`WARN private catalog ${key}: tier ${t} ignored, tier must be 1, 2 or 3`)
+        }
         const existing = rows.get(key)
         if (existing) {
           mergeInto(existing.row, r)

@@ -137,6 +137,15 @@ test('a bad row is skipped with a warning and pick still works', async () => {
   expect(r.stdout).not.toMatch(/fake\/bad/)
 })
 
+test('a private tier outside 1 to 3 warns and keeps the old tier', async () => {
+  const s = sb()
+  s.catalogPrivate('harness,model,tier\nfake,f2-a,4\n')
+  const r = await s.fanout(['pick', '--all', '--brief', s.brief(), '--dir', s.repo, '--kind', 'transcribe'])
+  expect(r.code).toBe(0)
+  expect(r.stderr).toMatch(/WARN private catalog fake\/f2-a: tier 4 ignored, tier must be 1, 2 or 3/)
+  expect(r.stdout).toMatch(/^CAND \d+ fake\/f2-a tier=2 /m)
+})
+
 test('an unpriced paid row is skipped', async () => {
   const s = sb()
   s.catalog(s.fixtureCatalog() + 'fake2,noprice,medium|low,1,paid,1.00,,,,,,active,,,,,,\n')
