@@ -25,7 +25,7 @@
     },
     {
       "id": "ms-credits",
-      "re": "insufficient (account )?funds|credit|\\b402\\b|payment",
+      "re": "insufficient (account )?(funds|credits?)|\\bcredits? (exhausted|balance|limit)|out of credits|\\b402\\b|payment required",
       "outcome": "credits_exhausted",
       "scope": "account"
     },
@@ -37,7 +37,7 @@
     },
     {
       "id": "ms-not-found",
-      "re": "model .* (not found|is not recognized|unavailable|deprecated)|invalid model",
+      "re": "model .* (not found|is not recognized|unavailable|deprecated)|invalid model|has no provider supported",
       "outcome": "model_unavailable"
     },
     {

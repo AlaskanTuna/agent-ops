@@ -137,3 +137,28 @@ test('reset phrases', async () => {
   const hit = sb.ledger().find((e) => e.event === 'limit_hit')
   expect(hit).toMatchObject({ source: 'stated', until: '2026-11-16T10:00:00.000Z' })
 }, 60000)
+
+// Every Claude Code result line carries a "fallback_credit" key, so the word
+// "credit" alone must not classify a failed job as out of credits.
+test('a fallback_credit key alone is not a credit error', async () => {
+  const { classify } = await import('../src/classify')
+  const sb = sandbox()
+  process.env.FANOUT_HOME = sb.home
+  const stdout = JSON.stringify({
+    type: 'result',
+    is_error: true,
+    result: 'API Error: 500 upstream failed',
+    usage: { fallback_credit: null }
+  })
+  const adapter = { name: 'none', rules: [] } as unknown as Parameters<typeof classify>[0]
+  const c = classify(adapter, { exit: 1, stdout, stderr: '', timedOut: false } as Parameters<typeof classify>[1], 0)
+  expect(c.outcome).not.toBe('credits_exhausted')
+  const real = classify(
+    adapter,
+    { exit: 1, stdout: '', stderr: 'Error: insufficient credits on this key', timedOut: false } as Parameters<
+      typeof classify
+    >[1],
+    0
+  )
+  expect(real.outcome).toBe('credits_exhausted')
+})

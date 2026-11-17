@@ -464,6 +464,45 @@ test('a turn cap is a job error', async () => {
   }
 })
 
+test('a model with no provider is unavailable, not out of credits', async () => {
+  const server = startProxy(liveRoutes())
+  try {
+    const sb = sandbox()
+    const dir = writeProxyDir(server.port)
+    stubbed(
+      sb,
+      successResult({
+        subtype: 'success',
+        is_error: true,
+        result: 'API Error: 400 Model id : Qwen/Qwen3.8-27B , has no provider supported',
+        usage: { fallback_credit: null }
+      }),
+      '1'
+    )
+    sb.catalog(`${HEADER}\n${MS_ROW}\n${FAKE_ROW}\n`)
+    await sb.fanout(
+      [
+        'run',
+        '--harness',
+        'modelscope',
+        '--model',
+        'modelscope/Qwen/Qwen3.8-27B',
+        '--brief',
+        sb.brief('Rename foo to bar in a.txt, nothing else.', 7000),
+        '--dir',
+        sb.repo,
+        '--kind',
+        'inventory'
+      ],
+      { env: { FANOUT_PROXY_DIR: dir } }
+    )
+    const [end] = sb.ledger().filter((e) => e.event === 'job_end' && e.harness === 'modelscope')
+    expect(end).toMatchObject({ outcome: 'model_unavailable' })
+  } finally {
+    server.stop()
+  }
+})
+
 test('denials are reported', () => {
   const stdout = successResult({ permission_denials: [{ tool: 'Bash' }, { tool: 'Write' }] })
   expect(denials(stdout)).toBe(2)

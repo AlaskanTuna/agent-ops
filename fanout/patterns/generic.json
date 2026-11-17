@@ -17,7 +17,7 @@
     },
     {
       "id": "gen-credits",
-      "re": "insufficient (account )?funds|credit|\\b402\\b|payment",
+      "re": "insufficient (account )?(funds|credits?)|\\bcredits? (exhausted|balance|limit)|out of credits|\\b402\\b|payment required",
       "outcome": "credits_exhausted",
       "scope": "account"
     },
