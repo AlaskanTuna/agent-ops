@@ -107,7 +107,7 @@ test('a contributor model at max effort is rounded and the key is hidden', async
     '--permission-mode',
     'acceptEdits',
     '--max-turns',
-    '40',
+    '120',
     '--output-format',
     'json'
   ])
@@ -277,11 +277,45 @@ test('a turn cap is a job error', async () => {
     }
   )
   expect(r.code).toBe(1)
-  expect(r.stdout.split('\n')[0]).toMatch(/outcome=job_error/)
+  expect(r.stdout).toMatch(/outcome=job_error/)
   expect(r.stdout).not.toContain('FALLBACK')
-  expect(sb.ledger().filter((e) => e.event === 'job_start')).toHaveLength(1)
-  const [end] = jobEnds(sb, 'meta')
-  expect(end).toMatchObject({ outcome: 'job_error' })
+  // The default cap was hit, so the same model gets one retry with 3x the turns.
+  const starts = sb.ledger().filter((e) => e.event === 'job_start')
+  expect(starts.map((e) => [e.reason, e.max_turns])).toEqual([
+    ['initial', 120],
+    ['retry', 360]
+  ])
+  expect(readArgv(stub.argv).join(' ')).toContain('--max-turns 360')
+  expect(r.stdout).toContain(
+    'NOTE meta/muse-spark-1.3-contributor hit its 120-turn limit; retrying once with 360 turns'
+  )
+  const ends = jobEnds(sb, 'meta')
+  expect(ends.map((e) => e.outcome)).toEqual(['job_error', 'job_error'])
+})
+
+test('an explicit --max-turns is never raised', async () => {
+  const sb = sandbox().at('2026-11-15T01:00:00Z')
+  const key = `meta-test-${randomUUID()}`
+  stubbed(sb, fixture('max-turns.txt'), '1')
+  sb.catalog(`${HEADER}\n${CONTRIBUTOR}\n`)
+  const r = await sb.fanout(
+    [
+      'run',
+      '--brief',
+      sb.brief('Rename foo to bar in a.txt, nothing else.'),
+      '--dir',
+      sb.repo,
+      '--kind',
+      'inventory',
+      '--public',
+      '--max-turns',
+      '10'
+    ],
+    { env: { ...baseEnv(sb, key) } }
+  )
+  expect(r.code).toBe(1)
+  const starts = sb.ledger().filter((e) => e.event === 'job_start')
+  expect(starts.map((e) => e.max_turns)).toEqual([10])
 })
 
 test('denials are reported', () => {

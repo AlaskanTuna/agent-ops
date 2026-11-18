@@ -350,6 +350,10 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
   const maxAttempts = o.maxAttempts ?? 8
   const adapterDefaults = adapterFor(list[0].row.harness).defaults
   const maxTurns = o.maxTurns ?? adapterDefaults?.maxTurns ?? 8
+  // A default turn cap that a job runs into is raised once, to 3x (at most 500),
+  // for the same model. An explicit --max-turns and per-call rows are never raised.
+  let turnsNow = maxTurns
+  let turnRetried = false
   if (o.dryRun) {
     process.env.FANOUT_DRYRUN = '1'
     const first = list[0]
@@ -538,7 +542,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
           job,
           outDir: join(dataDir(), 'logs'),
           timeoutS,
-          maxTurns,
+          maxTurns: turnsNow,
           bypass: o.bypass ?? false,
           allow: o.allow ?? []
         })
@@ -588,6 +592,7 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
         effort: next.effort,
         tier: next.row.tier,
         kind: o.kind,
+        max_turns: turnsNow,
         data_class: actualClass,
         workspace: ws.mode === 'git' ? ws.worktree : dir,
         ...(ws.baseSha ? { base_sha: ws.baseSha } : {}),
@@ -719,6 +724,21 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
       appendEvent(endEvent)
       const rowKey = `${next.row.harness}/${next.row.model}`
       recordFirstUse(next.row, outcome, caller, session, repo)
+      const hitTurnCap =
+        outcome === 'job_error' &&
+        (/max.?turns/i.test(classified.pattern ?? '') || /error_max_turns/.test(out.stdout.slice(-4096)))
+      if (hitTurnCap && o.maxTurns === undefined && !turnRetried && next.row.billing !== 'per_call' && turnsNow < 500) {
+        const raised = Math.min(500, turnsNow * 3)
+        notes.push(
+          `NOTE ${next.row.harness}/${next.row.model} hit its ${turnsNow}-turn limit; retrying once with ${raised} turns`
+        )
+        turnRetried = true
+        turnsNow = raised
+        attempts.push({ harness: next.row.harness, model: next.row.model, outcome })
+        pendingReason = 'retry'
+        finishAttempt({ tried: false, release: false })
+        continue
+      }
       if (outcome === 'job_error' || outcome === 'no_effect') {
         finishAttempt()
         const failed =

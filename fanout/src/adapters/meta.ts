@@ -48,7 +48,7 @@ const metaConfig: ClaudeCliConfig = {
   token: readMetaKey,
   missingKeyNote: 'no META_MODEL_API_KEY on file; the user adds it in their own terminal, never in the chat',
   fixEffort: (model, effort) => (model.includes('contributor') && effort === 'max' ? 'xhigh' : effort),
-  defaults: { timeoutS: 1500, maxTurns: 40 },
+  defaults: { timeoutS: 1500, maxTurns: 120 },
   billing: 'paid'
 }
 

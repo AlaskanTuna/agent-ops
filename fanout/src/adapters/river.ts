@@ -27,7 +27,7 @@ const riverConfig: ClaudeCliConfig = {
     }
   },
   missingKeyNote: 'proxy config unreadable; check FANOUT_PROXY_DIR or ~/.cli-proxy-api/config.yaml',
-  defaults: { timeoutS: 1500, maxTurns: 40 },
+  defaults: { timeoutS: 1500, maxTurns: 120 },
   billing: 'paid'
 }
 
