@@ -100,7 +100,7 @@ test('the job cost is the cost OMP reports, cache writes included', async () => 
   const sb = sandbox().at('2026-11-18T01:00:00Z')
   sb.catalog(`${HEADER}\n${OMP_ROW}\n${FAKE_ROW}\n`)
   ompStub(sb, ['{"type":"session"}', assistantEnd(0.0125), assistantEnd(0.0075), '{"type":"agent_end"}'], 0)
-  await run(sb, proxyDir(sb, KEY))
+  const r = await run(sb, proxyDir(sb, KEY))
   const [end] = sb.ledger().filter((e) => e.event === 'job_end' && e.harness === 'omp')
   expect(end).toMatchObject({
     outcome: 'ok',
@@ -110,6 +110,7 @@ test('the job cost is the cost OMP reports, cache writes included', async () => 
     tokens_out: 40
   })
   expect(end.cost_usd as number).toBeCloseTo(0.02, 6)
+  expect(r.stdout).toMatch(/COST paid API \(omp\/claude-haiku-5-5\): estimated \$[0-9.]+, actual \$0\.02/)
 })
 
 test('a low credit balance is an account-wide credit limit and falls back', async () => {

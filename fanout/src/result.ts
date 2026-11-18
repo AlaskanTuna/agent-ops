@@ -212,7 +212,7 @@ function renderLedgerBlock(root: string, extra?: RenderExtra): string | undefine
   for (const s of starts) {
     if (s.billing !== 'paid' && s.billing !== 'per_call') continue
     const end = ends.get(String(s.job))
-    const measured = end?.cost_source === 'computed'
+    const measured = end?.cost_source === 'computed' || end?.cost_source === 'reported'
     const detail = String(end?.detail ?? '')
     const workerLog = detail === 'orphaned lease' || detail.startsWith('interrupted by')
     const row = catalog.find((r) => r.harness === String(s.harness) && r.model === String(s.model))
@@ -225,7 +225,11 @@ function renderLedgerBlock(root: string, extra?: RenderExtra): string | undefine
             ...(typeof s.cost_est_usd === 'number' ? { estUsd: s.cost_est_usd } : {}),
             ...(typeof end?.cost_usd === 'number' ? { actualUsd: end.cost_usd as number } : {}),
             measured,
-            basis: workerLog ? 'computed from the worker log' : 'computed from tokens'
+            basis: workerLog
+              ? 'computed from the worker log'
+              : end?.cost_source === 'reported'
+                ? 'reported by the harness'
+                : 'computed from tokens'
           }
         : {
             harness: String(s.harness),

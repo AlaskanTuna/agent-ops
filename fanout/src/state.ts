@@ -218,7 +218,7 @@ export function chains(now: number): Chain[] {
         harness: String(s.harness),
         model: String(s.model),
         billing: s.billing,
-        measured: end?.cost_source === 'computed'
+        measured: end?.cost_source === 'computed' || end?.cost_source === 'reported'
       }
       if (typeof s.cost_est_usd === 'number') paid.estUsd = s.cost_est_usd
       if (typeof s.cost_est_mc === 'number') paid.estMc = s.cost_est_mc
