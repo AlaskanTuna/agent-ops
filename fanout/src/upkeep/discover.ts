@@ -74,7 +74,7 @@ function autoTier(info: ModelInfo, benchmarks: BenchmarkEntry[]): 1 | 2 | 3 {
 
 function defaultBilling(harness: string, model: string): Billing {
   if (harness === 'codex' || harness === 'agy') return 'subscription'
-  if (harness === 'meta' || harness === 'river' || harness === 'claude-fanout') return 'paid'
+  if (harness === 'meta' || harness === 'river' || harness === 'claude-fanout' || harness === 'omp') return 'paid'
   if (harness === 'modelscope') return 'per_call'
   if (harness === 'opencode') {
     if (model.startsWith('opencode/') && model.endsWith('-free')) return 'free'

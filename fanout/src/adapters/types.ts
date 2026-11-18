@@ -56,6 +56,8 @@ export interface Usage {
   tokensIn: number
   tokensOut: number
   tokensCached: number
+  /** USD the harness itself priced for the job (cache writes included), when it reports one. */
+  costUsd?: number
 }
 
 export interface ModelInfo {

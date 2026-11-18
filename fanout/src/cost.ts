@@ -138,6 +138,10 @@ function paidLine(row: CatalogRow, est: Estimate | undefined, usage: Usage | und
     basis
   }
   if (!usage) return { fields: { cost_source: 'unknown' }, line: { ...base } }
+  if (typeof usage.costUsd === 'number' && Number.isFinite(usage.costUsd)) {
+    const usd = usage.costUsd
+    return { fields: { cost_usd: usd, cost_source: 'reported' }, line: { ...base, actualUsd: usd, measured: true } }
+  }
   const usd = paidCostUsd(usage, row)
   return { fields: { cost_usd: usd, cost_source: 'computed' }, line: { ...base, actualUsd: usd, measured: true } }
 }

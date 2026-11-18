@@ -1,0 +1,37 @@
+{
+  "rules": [
+    {
+      "id": "omp-credits",
+      "re": "credit balance is too low|billing_error|\\b402\\b",
+      "outcome": "credits_exhausted",
+      "scope": "account"
+    },
+    {
+      "id": "omp-auth",
+      "re": "authentication_error|invalid x-api-key|\\b401\\b|permission_error",
+      "outcome": "auth_error",
+      "scope": "account"
+    },
+    {
+      "id": "omp-overload",
+      "re": "overloaded_error|\\b529\\b",
+      "outcome": "rate_limited",
+      "cooldownS": 30
+    },
+    {
+      "id": "omp-429",
+      "re": "rate_limit_error|\\b429\\b|rate.?limit",
+      "outcome": "rate_limited"
+    },
+    {
+      "id": "omp-model",
+      "re": "not_found_error|omp models find|model .*(not found|unknown|unavailable)",
+      "outcome": "model_unavailable"
+    },
+    {
+      "id": "omp-job",
+      "re": "prompt is too long|context.length|request_too_large|\\b413\\b",
+      "outcome": "job_error"
+    }
+  ]
+}

@@ -8,6 +8,7 @@ import { RiverAdapter } from './river'
 import { ClaudeFanoutAdapter } from './claude-fanout'
 import { ModelScopeAdapter } from './modelscope'
 import { OpenCodeAdapter } from './opencode'
+import { OmpAdapter } from './omp'
 
 class UnwiredAdapter implements Adapter {
   readonly name: string
@@ -61,6 +62,9 @@ export function adapterFor(harness: string): Adapter {
   }
   if (harness === 'opencode') {
     return new OpenCodeAdapter()
+  }
+  if (harness === 'omp') {
+    return new OmpAdapter()
   }
   return new UnwiredAdapter(harness)
 }
