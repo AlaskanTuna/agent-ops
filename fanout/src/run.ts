@@ -144,7 +144,9 @@ export async function runDetached(o: RunOptions, passthrough: string[]): Promise
   child.unref()
   const start = Date.now()
   let seen = false
-  while (Date.now() - start < 5000) {
+  // A cold start (catalog load, data-class lookup) can take well over 5 s
+  // before the chain writes its lease, so wait up to 60 s.
+  while (Date.now() - start < 60000) {
     if (existsSync(leasePath(root))) {
       seen = true
       break
@@ -675,7 +677,15 @@ export async function runChain(o: RunOptions): Promise<{ code: number; block: st
         writeBlock(root, block)
         return { code: signal === 'SIGTERM' ? 143 : 130, block, root }
       }
-      const usage = adapter.usage(out.stdout)
+      // Read usage from the full worker log: out.stdout keeps only the last
+      // 256 KB, and a long run's final event can fill all of it.
+      let usageText = out.stdout
+      try {
+        usageText = readFileSync(logOut, 'utf8')
+      } catch {
+        // fall back to the captured tail
+      }
+      const usage = adapter.usage(usageText)
       const classified = classify(adapter, out, endTs)
       let outcome = classified.outcome
       if (outcome === 'ok' && kindInfo(o.kind).writes) {

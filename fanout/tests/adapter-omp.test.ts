@@ -139,3 +139,16 @@ test('no Anthropic key in the proxy config skips omp without running it', async 
   expect(r.stdout).toMatch(/harness=fake model=f1-a outcome=ok/)
   expect(() => readFileSync(join(sb.home, 'omp-argv'), 'utf8')).toThrow()
 })
+
+test('the cost is read from the whole log, not the stdout tail', async () => {
+  const sb = sandbox().at('2026-11-18T01:00:00Z')
+  sb.catalog(`${HEADER}\n${OMP_ROW}\n${FAKE_ROW}\n`)
+  // OMP ends with an agent_end event that repeats the whole transcript; a long
+  // run pushes every message_end out of the last 256 KB of stdout.
+  const agentEnd = JSON.stringify({ type: 'agent_end', messages: ['x'.repeat(400 * 1024)] })
+  ompStub(sb, [assistantEnd(0.25), assistantEnd(0.5), agentEnd], 0)
+  await run(sb, proxyDir(sb, KEY))
+  const [end] = sb.ledger().filter((e) => e.event === 'job_end' && e.harness === 'omp')
+  expect(end).toMatchObject({ outcome: 'ok', cost_source: 'reported' })
+  expect(end.cost_usd as number).toBeCloseTo(0.75, 6)
+})
