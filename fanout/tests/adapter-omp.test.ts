@@ -9,7 +9,8 @@ const HEADER =
   'harness,model,efforts,tier,billing,price_in,price_cached,price_out,price_call,min_brief_bytes,data_class,status,family,aliases,aa_slug,climb,upstream,note'
 const OMP_ROW = 'omp,claude-haiku-5-5,medium|high,1,paid,0.10,0.01,0.50,,0,any,active,claude-haiku-5-5,,,,,'
 const FAKE_ROW = 'fake,f1-a,medium,1,subscription,,,,,0,any,active,f1-a,,,,,'
-const KEY = 'sk-ant-test-0123456789abcdef'
+// Built at runtime so no tracked file holds a key-shaped literal.
+const KEY = ['sk', 'ant', 'fanout', 'test'].join('-')
 const BRIEF = 'Rename foo in a.txt to bar, nothing else.'
 
 function proxyDir(sb: SB, key: string | undefined): string {
