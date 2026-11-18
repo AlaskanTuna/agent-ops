@@ -25,7 +25,7 @@ A work order: name every file and say "and nothing else". Inputs as paths. Concr
 
 ## 5. Dispatch
 
-Run `fanout run --brief <f> --dir <d> --kind <k> --expect <harness>/<model>` with the harness and model copied from the `PICK` line. One background command per chunk, at most 6 at once, at most 3 to 6 heavy workers (memory). Workers do not run builds or e2e. For a chain that may take more than a few minutes use `--detach`, then call `fanout wait <job>` again and again (each call waits up to 9 minutes; exit 4 means still running). Whole-issue runs add `--timeout 7200 --max-turns 500`. `--model` is a starting point, `--pin` forbids fallback, `--public` and `--private` override the data class.
+Run `fanout run --brief <f> --dir <d> --kind <k> --expect <harness>/<model>` with the harness and model copied from the `PICK` line. One background command per chunk, at most 6 at once, at most 3 to 6 heavy workers (memory). Workers do not run builds or e2e. For a chain that may take more than a few minutes use `--detach`, then call `fanout wait <job>` again and again (each call waits up to 9 minutes; exit 4 means still running). Whole-issue runs add `--timeout 7200 --max-turns 500`. `--model` is a starting point, `--pin` forbids fallback, `--public` and `--private` override the data class. The `omp` harness runs Claude models on Anthropic API credits (real money, tier 3): its `COST` line is the cost OMP itself reports, cache writes included.
 
 ## 6. Result block rules (hard)
 
