@@ -267,3 +267,20 @@ test('captured listings parse', async () => {
     server.stop()
   }
 }, 60000)
+
+test('a known unpriced auto row gets a price once the listing has one, and a price is never overwritten', async () => {
+  const sb = sandbox().at(BASE)
+  const base = {
+    fake: [{ model: 'f1-a' }, { model: 'f1-b' }, { model: 'f2-a' }, { model: 'f3-z' }],
+    fake2: [{ model: 'f1-c' }, { model: 'f2-b' }],
+    fake3: [{ model: 'f3-a' }]
+  }
+  const list = (extra: Record<string, unknown>) =>
+    JSON.stringify({ ...base, fake: [...base.fake, { model: 'f9-paid', billing: 'paid', ...extra }] })
+  await discover(sb, { FANOUT_FAKE_MODELS: list({}) })
+  expect(autoFor(sb, 'fake/f9-paid')).toMatchObject({ price_in: '', price_out: '' })
+  await discover(sb, { FANOUT_FAKE_MODELS: list({ priceIn: 3, priceCached: 0.3, priceOut: 15 }) })
+  expect(autoFor(sb, 'fake/f9-paid')).toMatchObject({ price_in: '3', price_cached: '0.3', price_out: '15' })
+  await discover(sb, { FANOUT_FAKE_MODELS: list({ priceIn: 99, priceOut: 99 }) })
+  expect(autoFor(sb, 'fake/f9-paid')).toMatchObject({ price_in: '3', price_out: '15' })
+}, 60000)

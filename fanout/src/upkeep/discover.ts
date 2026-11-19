@@ -166,6 +166,7 @@ export async function runDiscover(): Promise<string> {
   let added = 0
   let gone = 0
   let back = 0
+  let priced = 0
   const auto = readAutoRows()
   const autoByKey = new Map(auto.map((r) => [`${r.harness}/${r.model}`, r]))
   const newKeys = new Set<string>()
@@ -179,7 +180,22 @@ export async function runDiscover(): Promise<string> {
       if (ignore.some((re) => re.test(key))) continue
       seen.add(key)
       if (catalogKeys.has(key)) continue
-      if (autoByKey.has(key)) continue
+      const known = autoByKey.get(key)
+      if (known) {
+        // Fill a price the row was discovered without; never overwrite one.
+        const fills: [string, number | undefined][] = [
+          ['price_in', info.priceIn],
+          ['price_cached', info.priceCached],
+          ['price_out', info.priceOut]
+        ]
+        for (const [field, value] of fills) {
+          if ((known[field] ?? '') === '' && value !== undefined) {
+            known[field] = String(value)
+            priced += 1
+          }
+        }
+        continue
+      }
       const billing = info.billing ?? defaultBilling(l.harness, info.model)
       const tier = autoTier(info, benchmarks)
       const row: Record<string, string> = {
@@ -248,7 +264,7 @@ export async function runDiscover(): Promise<string> {
     }
   }
 
-  if (added > 0) writeAutoRows(auto)
+  if (added > 0 || priced > 0) writeAutoRows(auto)
   if (failed.length > 0) {
     throw new Error(
       `discover failed for ${failed.map((f) => `${f.harness}: ${f.failed}`).join('; ')} (${added} new, ${gone} gone)`
