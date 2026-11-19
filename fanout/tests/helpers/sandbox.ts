@@ -106,6 +106,8 @@ export class Sandbox {
       // never pop a real desktop toast from a test; notify tests set their own stub
       FANOUT_NOTIFY_CMD: 'true',
       FANOUT_NO_SLEEP: '1',
+      // never reach River's live price list from a test (a closed port fails at once)
+      FANOUT_RIVER_PRICING_URL: 'http://127.0.0.1:9/pricing',
       FANOUT_CALLER: 'test',
       FANOUT_SESSION: 'S1',
       TZ: 'Asia/Kuala_Lumpur',

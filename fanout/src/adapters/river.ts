@@ -50,6 +50,36 @@ function lastJsonApiStatus(stdout: string): number | undefined {
   return undefined
 }
 
+interface RiverPrice {
+  priceIn?: number
+  priceCached?: number
+  priceOut?: number
+}
+
+// River's public price list (USD per 1M tokens), keyed by River model id.
+// A down or changed endpoint leaves every route unpriced, never wrongly priced.
+async function riverPrices(): Promise<Map<string, RiverPrice>> {
+  const out = new Map<string, RiverPrice>()
+  const url = process.env.FANOUT_RIVER_PRICING_URL ?? 'https://console.river.ai/api/public/pricing'
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
+    if (!res.ok) return out
+    const body = (await res.json()) as { inference?: unknown }
+    if (!Array.isArray(body?.inference)) return out
+    const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
+    for (const item of body.inference) {
+      if (typeof item !== 'object' || item === null) continue
+      const r = item as Record<string, unknown>
+      if (typeof r.model !== 'string' || r.model === '') continue
+      const p: RiverPrice = { priceIn: num(r.input), priceCached: num(r.cached_input), priceOut: num(r.output) }
+      if (p.priceIn !== undefined && p.priceOut !== undefined) out.set(r.model, p)
+    }
+  } catch {
+    // keep routes unpriced; discovery still lists them
+  }
+  return out
+}
+
 function riverAliases(): string[] {
   try {
     return (
@@ -102,11 +132,14 @@ export class RiverAdapter extends ClaudeCliAdapter {
   }
 
   override async listModels(): Promise<ModelInfo[]> {
+    const prices = await riverPrices()
     return riverAliases().map((model) => {
       const info: ModelInfo = { model, billing: 'paid' }
       try {
         const raw = upstreamOf('river', model)
         if (raw !== undefined && upstreamClass(raw) === 'public-only') info.dataClass = 'public-only'
+        const price = raw !== undefined ? prices.get(raw) : undefined
+        if (price) Object.assign(info, price)
       } catch {
         // an unreadable config still lists the alias; routing skips it
       }
