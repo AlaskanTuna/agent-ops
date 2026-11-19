@@ -239,7 +239,7 @@ export function loadCatalog(): LoadedCatalog {
     { raw: defaultRaw, replace: true, silent: false },
     { raw: privateRows.rows, replace: false, silent: false }
   ]
-  const rows = new Map<string, { row: CatalogRow; specLayer: number }>()
+  const rows = new Map<string, { row: CatalogRow; specLayer: number; waiting?: boolean }>()
   const wildcards: { raw: Record<string, string>[]; layer: number }[] = []
   layers.forEach(({ raw, replace, silent }, layer) => {
     const layerWildcards: Record<string, string>[] = []
@@ -280,7 +280,11 @@ export function loadCatalog(): LoadedCatalog {
         } else {
           const fresh = blankRow(r.harness, r.model)
           mergeInto(fresh, r)
-          rows.set(key, { row: fresh, specLayer: layer })
+          // No lower layer knows this model yet. Without its own billing the
+          // row would default to a free subscription, so it waits for
+          // discovery or the default catalog instead of routing.
+          const waiting = !BILLINGS.includes((r.billing ?? '') as Billing)
+          rows.set(key, { row: fresh, specLayer: layer, waiting })
         }
       }
     }
@@ -297,6 +301,7 @@ export function loadCatalog(): LoadedCatalog {
   }
   const out: CatalogRow[] = []
   for (const [key, entry] of rows) {
+    if (entry.waiting) continue
     const problem = validateFinal(entry.row)
     if (problem) {
       const autoOnly = entry.specLayer === 0

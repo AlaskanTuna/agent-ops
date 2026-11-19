@@ -128,6 +128,18 @@ test('layer order is private over default over auto', async () => {
   expect(r.stdout).toMatch(/fake\/f2-new/)
 })
 
+test('a private row for a model no other layer knows waits for it unless it states billing', async () => {
+  const s = sb()
+  s.catalogPrivate(
+    'harness,model,efforts,tier,status,billing,price_in,price_out\nfake,f9-new,,3,,,,\nfake,f9-full,,3,,paid,1,2\n'
+  )
+  const r = await s.fanout(['pick', '--all', '--brief', s.brief(), '--dir', s.repo, '--kind', 'transcribe'])
+  expect(r.code).toBe(0)
+  // Never treated as a free subscription model just because the cells are empty.
+  expect(r.stdout).not.toMatch(/fake\/f9-new/)
+  expect(r.stdout).toMatch(/^CAND \d+ fake\/f9-full tier=3 .*billing=paid/m)
+})
+
 test('a bad row is skipped with a warning and pick still works', async () => {
   const s = sb()
   s.catalog(s.fixtureCatalog() + 'fake,bad,,9,subscription,,,,,,,active,,,,,,\n')
