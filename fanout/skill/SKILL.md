@@ -31,6 +31,10 @@ Run `fanout run --brief <f> --dir <d> --kind <k> --expect <harness>/<model>` wit
 
 For every `FALLBACK` line (including `not started`, a pre-start reroute) and every `COST` line, tell the user in the next message (fallback: from, to, why; cost: estimate and actual, calls and MC for per-call), then run `fanout ack <job>`. `ack` is refused while the chain still runs, so use `fanout wait`. Never present an estimate as an actual. `FAILED job_error` means the chunk is too large or malformed (split it). `FAILED no_effect` means the worker changed nothing (read `LOG=`, re-brief). `RETRY`, `NOTE`, and `DENIALS` are informational. A desktop notification repeats each `FALLBACK` and `COST` line, but the user still hears it from you.
 
+## 6b. Report what went wrong
+
+When something goes wrong that you did not expect, record it before you move on: a `FAILED` line, a fallback for no clear reason, a cost far above the estimate, a worker that did something odd, or a fanout command that errored or misbehaved. Run `fanout incident add --title "<short>" --what "<what happened, with the exact error text>" [--job <id>] [--kind dispatch|worker|cost|limit|tooling|other] [--severity low|medium|high] [--expected "<what you expected>"] [--tried "<what you already tried>"]`. Pass `--job` whenever a job is involved: it links the chain, logs and patch. Do not paste secrets or private file contents. Then tell the user the `INCIDENT` id. A crash inside fanout records itself. The user reviews with `fanout incident list` and `fanout incident show <id>`, and closes with `fanout incident resolve <id> --note "<fix>"`.
+
 ## 7. Verify, then record
 
 Open `PATCH=` or `WORKTREE=`. Check artifacts against the brief (an exit code is not proof: agy exits 0 on timeout, opencode exits 0 having done nothing). Apply the patch yourself after review. Then run `fanout verdict <job> accepted|rejected`. On rejection write a new brief naming the defect and run `fanout run --escalate-from <job>`.

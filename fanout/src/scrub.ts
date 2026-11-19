@@ -92,12 +92,17 @@ function sharesBriefWindow(line: string, brief: string): boolean {
 
 // Scrub a short human-written note (verdict --note): mask secret shapes and cut length.
 export function scrubNote(note: string): string {
-  const out = note
+  return scrubText(note, 200)
+}
+
+// Mask secret shapes in agent-written text (incident reports) and cut it to `max` characters.
+export function scrubText(text: string, max: number): string {
+  const out = text
     .replace(/Bearer\s+[\w.\-~+/=]+/g, '[secret]')
     .replace(/\bAIza[\w-]{30,}\b/g, '[secret]')
     .replace(/\bsk-[\w-]{16,}\b/g, '[secret]')
     .replace(/\bghp_[\w-]{16,}/g, '[secret]')
     .replace(/\bxox[\w-]{16,}/g, '[secret]')
     .replace(/\b((?:api[_-]?key|token|secret|password)\s*[=:]\s*["']?)[\w.\-]{8,}/gi, '$1[secret]')
-  return out.slice(0, 200)
+  return out.slice(0, max)
 }

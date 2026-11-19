@@ -21,6 +21,7 @@ async function loadCommands(): Promise<void> {
   await import('./commands/upkeep')
   await import('./commands/benchmarks')
   await import('./commands/doctor')
+  await import('./commands/incident')
 }
 
 function usage(): string {
@@ -69,8 +70,22 @@ async function main(): Promise<number> {
 // top-level await deadlocks the bundle. main() is async either way.
 main().then(
   (code) => process.exit(code),
-  (err) => {
+  async (err) => {
     console.error(err)
+    // A crash inside fanout is itself an incident: record it for the post-mortem.
+    try {
+      const { recordIncident } = await import('./commands/incident')
+      const msg = err instanceof Error ? err.message : String(err)
+      recordIncident({
+        title: `fanout crashed: ${msg.slice(0, 120)}`,
+        what: `argv: ${process.argv.slice(2).join(' ')}\n${err instanceof Error && err.stack ? err.stack : msg}`,
+        kind: 'tooling',
+        severity: 'high',
+        source: 'fanout'
+      })
+    } catch {
+      // recording never hides the original error
+    }
     process.exit(1)
   }
 )

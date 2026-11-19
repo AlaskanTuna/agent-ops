@@ -147,7 +147,12 @@ function renderLedgerBlock(root: string, extra?: RenderExtra): string | undefine
     for (const n of extra?.notes ?? []) lines.push(n)
     if (live.worktree) lines.push(`WORKTREE=${live.worktree}`)
     if (live.patch) lines.push(`PATCH=${live.patch}`)
-    if (extra?.failedText) lines.push(extra.failedText)
+    if (extra?.failedText) {
+      lines.push(extra.failedText)
+      lines.push(
+        `INCIDENT if this was not expected, record it: fanout incident add --job ${live.job} --kind dispatch --title "<short title>" --what "<what happened, and what you expected>"`
+      )
+    }
     return lines.join('\n')
   }
   const ends = new Map<string, FanoutEvent>()
@@ -268,7 +273,12 @@ function renderLedgerBlock(root: string, extra?: RenderExtra): string | undefine
       }
     }
   }
-  if (failed) lines.push(failed)
+  if (failed) {
+    lines.push(failed)
+    lines.push(
+      `INCIDENT if this was not expected, record it: fanout incident add --job ${finalJob} --kind dispatch --title "<short title>" --what "<what happened, and what you expected>"`
+    )
+  }
   return lines.join('\n')
 }
 

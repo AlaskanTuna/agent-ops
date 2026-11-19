@@ -1,3 +1,4 @@
+import { openIncidents } from './commands/incident'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { formatUsd } from './cost'
@@ -82,6 +83,11 @@ export function briefLines(now: number): string[] {
     if (!chain.finished || chain.reported || chain.caller === 'upkeep') continue
     if (chain.hops.length === 0 && !chain.rerouted && chain.paidJobs.length === 0) continue
     lines.push(`UNREPORTED ${chain.finalJob} ${unreportedSummary(chain)} (run: fanout ack ${chain.finalJob})`)
+  }
+  const open = openIncidents()
+  if (open.length > 0) {
+    const last = open[open.length - 1]
+    lines.push(`INCIDENTS ${open.length} open, latest: ${String(last.title)} (fanout incident list)`)
   }
   lines.push(...upkeepLines(now))
   lines.push(...benchLines(now))
