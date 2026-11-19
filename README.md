@@ -107,15 +107,15 @@ The diagram is drawn with [Archify](https://github.com/tt-a1i/archify) from [arc
 
 ### Supported Workers
 
-| Harness       | Worker CLI                      | Billing                  |
-| ------------- | ------------------------------- | ------------------------ |
-| codex         | `codex exec`                    | ChatGPT subscription     |
-| agy           | Antigravity `agy -p`            | Google subscription      |
-| meta          | `claude -p` on Meta Model API   | USD credit               |
-| river         | `claude -p` through CLIProxyAPI | USD credit               |
-| claude-fanout | `claude -p` through CLIProxyAPI | OpenRouter USD credit    |
-| modelscope    | `claude -p` through CLIProxyAPI | Magicubes per call       |
-| opencode      | `opencode run`                  | Free Zen and opencode-go |
+| Harness           | Worker CLI                      | Billing                  |
+| ----------------- | ------------------------------- | ------------------------ |
+| codex             | `codex exec`                    | ChatGPT subscription     |
+| agy               | Antigravity `agy -p`            | Google subscription      |
+| meta              | `claude -p` on Meta Model API   | USD credit               |
+| river             | `claude -p` through CLIProxyAPI | USD credit               |
+| openrouter-fanout | `claude -p` through CLIProxyAPI | OpenRouter USD credit    |
+| modelscope        | `claude -p` through CLIProxyAPI | Magicubes per call       |
+| opencode          | `opencode run`                  | Free Zen and opencode-go |
 
 <p align="right"><a href="#readme-top">&uarr;</a></p>
 

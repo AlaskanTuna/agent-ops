@@ -64,7 +64,7 @@ export function denials(stdout: string): number {
 }
 
 // `claude -p` against another endpoint is the shape of the meta, river and
-// claude-fanout workers. Subclasses pass their config plus their patterns;
+// openrouter-fanout workers. Subclasses pass their config plus their patterns;
 // meta also overrides listModels and preflight.
 export class ClaudeCliAdapter implements Adapter {
   readonly name: string

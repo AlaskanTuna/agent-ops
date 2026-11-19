@@ -35,7 +35,22 @@ async function main(): Promise<number> {
     console.error(usage())
     return 2
   }
-  const [name, ...rest] = argv
+  const [name, ...given] = argv
+  // claude-fanout was renamed openrouter-fanout (2026-11-19): it runs OpenRouter
+  // models through CLIProxyAPI, not Claude. The old name keeps working.
+  let renamed = false
+  const rest = given.map((a) => {
+    if (a === 'claude-fanout') {
+      renamed = true
+      return 'openrouter-fanout'
+    }
+    if (a.startsWith('claude-fanout/')) {
+      renamed = true
+      return `openrouter-fanout/${a.slice('claude-fanout/'.length)}`
+    }
+    return a
+  })
+  if (renamed) console.error('NOTE claude-fanout was renamed openrouter-fanout; use the new name')
   if (name === '--version' || name === '-V') {
     console.log(`fanout ${VERSION}`)
     return 0

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { mkdtempSync } from 'node:fs'
 import { sandbox } from './helpers/sandbox'
 
-// Task 39: river and claude-fanout (OpenRouter) adapters through CLIProxyAPI.
+// Task 39: river and openrouter-fanout (OpenRouter) adapters through CLIProxyAPI.
 // The proxy hides the vendor behind an alias, so the data class comes from
 // the upstream model name in the config, never from the alias.
 //
@@ -16,13 +16,14 @@ import { sandbox } from './helpers/sandbox'
 const HEADER =
   'harness,model,efforts,tier,billing,price_in,price_cached,price_out,price_call,min_brief_bytes,data_class,status,family,aliases,aa_slug,climb,upstream,note'
 const CF_SPARK =
-  'claude-fanout,muse-spark-1.3,low|high,1,paid,0.10,0.002,0.20,,0,any,active,muse-spark,,,,meta/muse-spark-1.3-contributor,,'
+  'openrouter-fanout,muse-spark-1.3,low|high,1,paid,0.10,0.002,0.20,,0,any,active,muse-spark,,,,meta/muse-spark-1.3-contributor,,'
 const CF_GLM =
-  'claude-fanout,glm-5.3-flash,low|high,1,paid,0.075,0.075,0.25,,0,any,active,glm-5.3-flash,,,,z-ai/glm-5.3-flash,,'
-const CF_MYSTERY = 'claude-fanout,mystery,low|high,1,paid,0.10,0.002,0.20,,0,any,active,mystery-family,,,,,'
-const CF_QWEN = 'claude-fanout,qwen3.7-flash,,1,paid,0.03,0.03,0.13,,0,any,active,qwen3.7-flash,,,,qwen/qwen3.7-flash,,'
+  'openrouter-fanout,glm-5.3-flash,low|high,1,paid,0.075,0.075,0.25,,0,any,active,glm-5.3-flash,,,,z-ai/glm-5.3-flash,,'
+const CF_MYSTERY = 'openrouter-fanout,mystery,low|high,1,paid,0.10,0.002,0.20,,0,any,active,mystery-family,,,,,'
+const CF_QWEN =
+  'openrouter-fanout,qwen3.7-flash,,1,paid,0.03,0.03,0.13,,0,any,active,qwen3.7-flash,,,,qwen/qwen3.7-flash,,'
 const CF_RIVER_ALIAS =
-  'claude-fanout,glm-5.3-flash-river,low|high,1,paid,0.12,0.024,0.40,,0,any,active,glm-5.3-flash-river,,,,z-ai-org/GLM-5.3-Flash,,'
+  'openrouter-fanout,glm-5.3-flash-river,low|high,1,paid,0.12,0.024,0.40,,0,any,active,glm-5.3-flash-river,,,,z-ai-org/GLM-5.3-Flash,,'
 const RIVER_DEEP =
   'river,deepseek-v4.1-flash-river,low|high|max|none,1,paid,0.12,0.0024,0.48,,0,any,active,deepseek-v4.1-flash-river,,,,deepseek-ai/DeepSeek-V4.1-Flash,,'
 const RIVER_GLM =
@@ -126,7 +127,7 @@ test('the alias muse-spark-1.3 is public-only because its upstream is a contribu
     sb.catalog(`${FULL_CATALOG}\n`)
     const r = await sb.fanout(privatePickArgs(sb), { env: proxyEnv(w) })
     expect(r.code).toBe(0)
-    expect(r.stdout).not.toContain('claude-fanout/muse-spark-1.3')
+    expect(r.stdout).not.toContain('openrouter-fanout/muse-spark-1.3')
     const metaLine = r.stdout.split('\n').find((l) => l.startsWith('CAND') && l.includes('meta/muse-spark-1.3'))
     expect(metaLine).toMatch(/class=any/)
   } finally {
@@ -150,7 +151,7 @@ test('naming the alias does not get around it', async () => {
           '--kind',
           'inventory',
           '--harness',
-          'claude-fanout',
+          'openrouter-fanout',
           '--model',
           'muse-spark-1.3',
           ...extra
@@ -158,7 +159,7 @@ test('naming the alias does not get around it', async () => {
         { env: proxyEnv(w) }
       )
       expect(r.code).toBe(3)
-      expect(r.stdout).toContain('REFUSED claude-fanout/muse-spark-1.3 is public-only and this chunk is private')
+      expect(r.stdout).toContain('REFUSED openrouter-fanout/muse-spark-1.3 is public-only and this chunk is private')
       expect(sb.ledger()).toEqual([])
     } finally {
       w.stop()
@@ -188,14 +189,14 @@ test('a public chunk may use it', async () => {
         'inventory',
         '--public',
         '--harness',
-        'claude-fanout',
+        'openrouter-fanout',
         '--model',
         'muse-spark-1.3'
       ],
       { env: proxyEnv(w) }
     )
     expect(r.code).toBe(0)
-    expect(r.stdout.split('\n')[0]).toMatch(/harness=claude-fanout model=muse-spark-1.3 outcome=ok/)
+    expect(r.stdout.split('\n')[0]).toMatch(/harness=openrouter-fanout model=muse-spark-1.3 outcome=ok/)
     const env = readEnv(stub.env)
     expect(env.get('ANTHROPIC_MODEL')).toBe('muse-spark-1.3')
     expect(env.get('ANTHROPIC_BASE_URL')).toBe(`http://127.0.0.1:${w.port}`)
@@ -212,14 +213,14 @@ test('the class follows the config, not the catalog', async () => {
     sb.catalog(`${FULL_CATALOG}\n`)
     const hidden = await sb.fanout(privatePickArgs(sb), { env: proxyEnv(w) })
     expect(hidden.code).toBe(0)
-    expect(hidden.stdout).not.toContain('claude-fanout/glm-5.3-flash')
+    expect(hidden.stdout).not.toContain('openrouter-fanout/glm-5.3-flash')
     writeFileSync(
       join(w.dir, 'config.yaml'),
       readFileSync(fixture('config.yaml.tpl'), 'utf8').replaceAll('__PORT__', String(w.port))
     )
     const shown = await sb.fanout(privatePickArgs(sb), { env: proxyEnv(w) })
     expect(shown.code).toBe(0)
-    expect(shown.stdout).toContain('claude-fanout/glm-5.3-flash')
+    expect(shown.stdout).toContain('openrouter-fanout/glm-5.3-flash')
   } finally {
     w.stop()
   }
@@ -232,13 +233,13 @@ test('an unknown OpenRouter upstream is public-only', async () => {
     sb.catalog(`${FULL_CATALOG}\n`)
     const priv = await sb.fanout(privatePickArgs(sb), { env: proxyEnv(w) })
     expect(priv.code).toBe(0)
-    expect(priv.stdout).not.toContain('claude-fanout/mystery')
+    expect(priv.stdout).not.toContain('openrouter-fanout/mystery')
     const pub = await sb.fanout(
       ['pick', '--brief', sb.brief(), '--dir', sb.repo, '--kind', 'inventory', '--all', '--public'],
       { env: proxyEnv(w) }
     )
     expect(pub.code).toBe(0)
-    expect(pub.stdout).toContain('claude-fanout/mystery')
+    expect(pub.stdout).toContain('openrouter-fanout/mystery')
   } finally {
     w.stop()
   }
@@ -494,22 +495,22 @@ test('auth_unavailable is an auth error', async () => {
         'inventory',
         '--public',
         '--harness',
-        'claude-fanout',
+        'openrouter-fanout',
         '--model',
         'glm-5.3-flash'
       ],
       { env: proxyEnv(w) }
     )
     expect(r.code).toBe(0)
-    const [hit] = sb.ledger().filter((e) => e.event === 'limit_hit' && e.harness === 'claude-fanout')
+    const [hit] = sb.ledger().filter((e) => e.event === 'limit_hit' && e.harness === 'openrouter-fanout')
     expect(hit).toMatchObject({ outcome: 'auth_error' })
-    expect(r.stdout).toContain('FALLBACK claude-fanout/glm-5.3-flash auth_error -> fake/f1-a')
+    expect(r.stdout).toContain('FALLBACK openrouter-fanout/glm-5.3-flash auth_error -> fake/f1-a')
   } finally {
     w.stop()
   }
 })
 
-test('claude-fanout refuses an alias outside the openrouter block', async () => {
+test('openrouter-fanout refuses an alias outside the openrouter block', async () => {
   const sb = sandbox().at('2026-11-15T01:00:00Z')
   const w = startProxy(sb)
   try {
@@ -530,14 +531,14 @@ test('claude-fanout refuses an alias outside the openrouter block', async () => 
         '--kind',
         'inventory',
         '--harness',
-        'claude-fanout',
+        'openrouter-fanout',
         '--model',
         'glm-5.3-flash-river'
       ],
       { env: proxyEnv(w) }
     )
     expect(r.code).toBe(0)
-    expect(r.stdout).toContain('NOTE claude-fanout: glm-5.3-flash-river is not an openrouter alias')
+    expect(r.stdout).toContain('NOTE openrouter-fanout: glm-5.3-flash-river is not an openrouter alias')
     expect(r.stdout.split('\n')[0]).toMatch(/outcome=ok/)
   } finally {
     w.stop()
@@ -607,10 +608,10 @@ test('river classifies 403 as auth and 404 as model_unavailable', async () => {
   })
 })
 
-test('claude-fanout treats exit 124 as a worker error', async () => {
-  const { ClaudeFanoutAdapter } = await import('../src/adapters/claude-fanout')
+test('openrouter-fanout treats exit 124 as a worker error', async () => {
+  const { OpenRouterFanoutAdapter } = await import('../src/adapters/openrouter-fanout')
   const now = Date.parse('2026-11-15T01:00:00Z')
-  const adapter = new ClaudeFanoutAdapter()
+  const adapter = new OpenRouterFanoutAdapter()
   expect(adapter.classify({ exit: 124, stdout: 'timed out', stderr: '', timedOut: false }, now)).toMatchObject({
     outcome: 'worker_error'
   })
@@ -704,8 +705,8 @@ test('discovery prices OpenRouter models and leaves unpriced ones unrouted', asy
   try {
     // The upkeep discover seam (Task 32, built in parallel) consumes
     // listModels; the call below is the same code path.
-    const { ClaudeFanoutAdapter } = await import('../src/adapters/claude-fanout')
-    const models = await new ClaudeFanoutAdapter().listModels()
+    const { OpenRouterFanoutAdapter } = await import('../src/adapters/openrouter-fanout')
+    const models = await new OpenRouterFanoutAdapter().listModels()
     const qwen = models.find((m) => m.model === 'qwen3.7-flash')
     expect(qwen).toMatchObject({ billing: 'paid', priceIn: 0.03, priceOut: 0.13 })
     const mystery = models.find((m) => m.model === 'mystery')
@@ -744,12 +745,12 @@ test('the mined river fixtures classify as recorded', async () => {
   }
 })
 
-test('the mined claude-fanout fixtures classify as recorded', async () => {
-  // Task 26 mined no claude-fanout clusters, so this loops zero times today;
+test('the mined openrouter-fanout fixtures classify as recorded', async () => {
+  // Task 26 mined no openrouter-fanout clusters, so this loops zero times today;
   // it runs any future cluster the same way the river test does.
   let entries: { file: string; outcome: string }[] = []
   try {
-    entries = JSON.parse(readFileSync(join(import.meta.dir, './fixtures/mined/claude-fanout/index.json'), 'utf8'))
+    entries = JSON.parse(readFileSync(join(import.meta.dir, './fixtures/mined/openrouter-fanout/index.json'), 'utf8'))
   } catch {
     entries = []
   }
@@ -757,7 +758,7 @@ test('the mined claude-fanout fixtures classify as recorded', async () => {
     const sb = sandbox().at('2026-11-15T01:00:00Z')
     const w = startProxy(sb)
     try {
-      stubbed(sb, join(import.meta.dir, './fixtures/mined/claude-fanout', entry.file), '1')
+      stubbed(sb, join(import.meta.dir, './fixtures/mined/openrouter-fanout', entry.file), '1')
       sb.catalog([HEADER, CF_GLM, FAKE_A].join('\n') + '\n')
       await sb.fanout(
         [
@@ -770,13 +771,13 @@ test('the mined claude-fanout fixtures classify as recorded', async () => {
           'inventory',
           '--public',
           '--harness',
-          'claude-fanout',
+          'openrouter-fanout',
           '--model',
           'glm-5.3-flash'
         ],
         { env: proxyEnv(w) }
       )
-      const [end] = jobEnds(sb, 'claude-fanout')
+      const [end] = jobEnds(sb, 'openrouter-fanout')
       expect(end).toMatchObject({ outcome: entry.outcome })
     } finally {
       w.stop()

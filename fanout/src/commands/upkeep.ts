@@ -92,7 +92,8 @@ async function registerRealSteps(): Promise<void> {
     [() => import('../upkeep/benchmarks'), 'registerBenchmarksStep', 'benchmarks'],
     [() => import('../upkeep/smoke'), 'registerSmokeStep', 'smoke'],
     [() => import('../upkeep/patterns'), 'registerPatternsStep', 'patterns'],
-    [() => import('../upkeep/housekeeping'), 'registerHousekeepingStep', 'housekeeping']
+    [() => import('../upkeep/housekeeping'), 'registerHousekeepingStep', 'housekeeping'],
+    [() => import('../upkeep/sync'), 'registerSyncStep', 'sync']
   ]
   for (const [load, fn, step] of modules) {
     try {

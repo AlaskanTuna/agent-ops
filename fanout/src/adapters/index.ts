@@ -5,7 +5,7 @@ import { AgyAdapter } from './agy'
 import { FakeAdapter } from './fake'
 import { MetaAdapter } from './meta'
 import { RiverAdapter } from './river'
-import { ClaudeFanoutAdapter } from './claude-fanout'
+import { OpenRouterFanoutAdapter } from './openrouter-fanout'
 import { ModelScopeAdapter } from './modelscope'
 import { OpenCodeAdapter } from './opencode'
 import { OmpAdapter } from './omp'
@@ -54,8 +54,8 @@ export function adapterFor(harness: string): Adapter {
   if (harness === 'river') {
     return new RiverAdapter()
   }
-  if (harness === 'claude-fanout') {
-    return new ClaudeFanoutAdapter()
+  if (harness === 'openrouter-fanout') {
+    return new OpenRouterFanoutAdapter()
   }
   if (harness === 'modelscope') {
     return new ModelScopeAdapter()

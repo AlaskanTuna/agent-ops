@@ -227,7 +227,7 @@ t('every harness is recognised', () => {
     ['opencode', 'opencode run --model opencode/x --dir . "$(cat b.md)" < /dev/null'],
     ['modelscope', 'python3 ~/.claude/skills/modelscope-fanout/scripts/worker.py --cwd . --brief b.md'],
     ['river', 'ANTHROPIC_BASE_URL=http://127.0.0.1:8317 ANTHROPIC_MODEL=deepseek-v4.1-flash-river claude -p "do x"'],
-    ['claude-fanout', 'ANTHROPIC_BASE_URL=http://127.0.0.1:8317 ANTHROPIC_MODEL=glm-5.3-flash claude -p "do x"']
+    ['openrouter-fanout', 'ANTHROPIC_BASE_URL=http://127.0.0.1:8317 ANTHROPIC_MODEL=glm-5.3-flash claude -p "do x"']
   ]
   const lines: string[] = []
   const dbCmds: string[] = []

@@ -229,3 +229,20 @@ test('default catalog: argon is tier 2 until the private catalog says 3', async 
   )
   expect(pub.stdout).toMatch(/meta\/muse-spark-1\.3-contributor tier=1 .*class=public-only/)
 })
+
+test('the old claude-fanout harness name still works and says it was renamed', async () => {
+  const s = sb()
+  const r = await s.fanout([
+    'pick',
+    '--brief',
+    s.brief(),
+    '--dir',
+    s.repo,
+    '--kind',
+    'transcribe',
+    '--harness',
+    'claude-fanout'
+  ])
+  expect(r.code).toBe(0)
+  expect(r.stderr).toContain('NOTE claude-fanout was renamed openrouter-fanout')
+})

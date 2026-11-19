@@ -5,19 +5,19 @@ import { modelIds, proxyModels, readProxyConfig, upstreamOf, UNVERIFIED_UPSTREAM
 import { isKnownAnyUpstream, upstreamClass } from '../dataclass'
 import type { Rule } from '../classify'
 
-import claudeFanoutJson from '../../patterns/claude-fanout.json'
+import openRouterFanoutJson from '../../patterns/openrouter-fanout.json'
 
-function claudeFanoutRules(): Rule[] {
+function openRouterFanoutRules(): Rule[] {
   try {
-    const rules = (claudeFanoutJson as { rules: Rule[] }).rules
+    const rules = (openRouterFanoutJson as { rules: Rule[] }).rules
     return Array.isArray(rules) ? rules : []
   } catch {
     return []
   }
 }
 
-const claudeFanoutConfig: ClaudeCliConfig = {
-  name: 'claude-fanout',
+const openRouterFanoutConfig: ClaudeCliConfig = {
+  name: 'openrouter-fanout',
   baseUrl: () => `http://127.0.0.1:${readProxyConfig().port}`,
   token: () => {
     try {
@@ -80,9 +80,9 @@ async function openRouterPrices(): Promise<Map<string, OpenRouterPrice>> {
   return out
 }
 
-export class ClaudeFanoutAdapter extends ClaudeCliAdapter {
+export class OpenRouterFanoutAdapter extends ClaudeCliAdapter {
   constructor() {
-    super(claudeFanoutConfig, claudeFanoutRules())
+    super(openRouterFanoutConfig, openRouterFanoutRules())
   }
 
   override build(i: BuildInput): BuiltCommand {
@@ -90,10 +90,10 @@ export class ClaudeFanoutAdapter extends ClaudeCliAdapter {
     try {
       aliases = openRouterAliases()
     } catch {
-      throw new SkipCandidate('claude-fanout: proxy config unreadable')
+      throw new SkipCandidate('openrouter-fanout: proxy config unreadable')
     }
-    if (!aliases.includes(i.model)) throw new SkipCandidate(`claude-fanout: ${i.model} is not an openrouter alias`)
-    if (!ensureProxy()) throw new SkipCandidate('claude-fanout: proxy not reachable')
+    if (!aliases.includes(i.model)) throw new SkipCandidate(`openrouter-fanout: ${i.model} is not an openrouter alias`)
+    if (!ensureProxy()) throw new SkipCandidate('openrouter-fanout: proxy not reachable')
     return super.build(i)
   }
 
@@ -153,16 +153,17 @@ export class ClaudeFanoutAdapter extends ClaudeCliAdapter {
       readProxyConfig()
       aliases = openRouterAliases()
     } catch {
-      return { ok: false, outcome: 'auth_error', detail: 'claude-fanout: proxy config unreadable' }
+      return { ok: false, outcome: 'auth_error', detail: 'openrouter-fanout: proxy config unreadable' }
     }
     if (o?.quick) return { ok: true }
-    if (!ensureProxy()) return { ok: false, outcome: 'model_unavailable', detail: 'claude-fanout: proxy not reachable' }
+    if (!ensureProxy())
+      return { ok: false, outcome: 'model_unavailable', detail: 'openrouter-fanout: proxy not reachable' }
     const live = new Set(modelIds(await proxyModels()))
     if (aliases.some((a) => live.has(a))) return { ok: true }
     return {
       ok: false,
       outcome: 'model_unavailable',
-      detail: 'claude-fanout: no openrouter alias is listed by the proxy'
+      detail: 'openrouter-fanout: no openrouter alias is listed by the proxy'
     }
   }
 }

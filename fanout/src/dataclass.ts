@@ -145,7 +145,7 @@ export function upstreamClass(upstream: string | undefined): DataClass {
 export function rowClass(row: CatalogRow, adapter: Adapter): DataClass {
   if (row.dataClass === 'public-only') return 'public-only'
   const upstream = adapter.upstream?.(row.model)
-  if (row.harness === 'claude-fanout') {
+  if (row.harness === 'openrouter-fanout') {
     // The proxy hides the vendor behind the alias: an upstream that is not
     // the upstream cell of an any catalog row (a config edit pointing at an
     // unreviewed model, an unknown OpenRouter row, an unreadable config) is
@@ -159,7 +159,7 @@ export function rowClass(row: CatalogRow, adapter: Adapter): DataClass {
 }
 
 // True when some any catalog row carries this upstream cell. Used by the
-// claude-fanout adapter to decide whether a configured upstream is reviewed.
+// openrouter-fanout adapter to decide whether a configured upstream is reviewed.
 export function isKnownAnyUpstream(upstream: string): boolean {
   try {
     return loadCatalog().rows.some((r) => r.dataClass === 'any' && r.upstream === upstream)

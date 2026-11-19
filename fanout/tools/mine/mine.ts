@@ -14,7 +14,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'no
 import { join, resolve, sep } from 'node:path'
 import { normalizeSignature, scrubFixture } from '../../src/scrub'
 
-type Harness = 'codex' | 'agy' | 'meta' | 'modelscope' | 'opencode' | 'river' | 'claude-fanout'
+type Harness = 'codex' | 'agy' | 'meta' | 'modelscope' | 'opencode' | 'river' | 'openrouter-fanout'
 
 interface Pair {
   harness: Harness
@@ -99,7 +99,7 @@ export function classifyLaunch(cmd: string): Harness | undefined {
   if (/\bclaude\s+-p\b/.test(cmd)) {
     if (!/8317|CLIPROXY/.test(cmd)) return undefined
     if (/[\w.+-]*-river\b/.test(cmd)) return 'river'
-    return 'claude-fanout'
+    return 'openrouter-fanout'
   }
   return undefined
 }
