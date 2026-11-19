@@ -1,12 +1,39 @@
-import { readdirSync, readFileSync, rmSync, statSync, unlinkSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
-import { LEDGER_WINDOW_MS, nowMs } from '../clock'
+import { LEDGER_WINDOW_MS, nowIso, nowMs } from '../clock'
 import { readEvents } from '../events'
 import { dataDir } from '../paths'
 import { reapStaleLeases } from '../reaper'
+import { leasePath } from '../lease'
 import { registerStep } from './index'
 
 const DAY_MS = 24 * 3600 * 1000
+const STRIP_AFTER_MS = 2 * 3600 * 1000
+const REMOVE_AFTER_MS = 3 * DAY_MS
+
+/** End time and root of every job in the ledger window, by job id. */
+function jobEnds(): { at: Map<string, number>; roots: Map<string, string> } {
+  const at = new Map<string, number>()
+  const roots = new Map<string, string>()
+  for (const e of readEvents(nowMs() - LEDGER_WINDOW_MS)) {
+    if (typeof e.job !== 'string') continue
+    if (e.event === 'job_start') roots.set(e.job, String(e.root ?? e.job))
+    if (e.event === 'job_end') {
+      const t = Date.parse(String(e.ts))
+      if (Number.isFinite(t)) at.set(e.job, t)
+    }
+  }
+  return { at, roots }
+}
+
+/** Remove git-ignored files from a worktree; true when anything was removed. */
+function stripIgnored(path: string): boolean {
+  if (!existsSync(join(path, '.git'))) return false
+  const dry = Bun.spawnSync(['git', '-C', path, 'clean', '-ndX'], { stdout: 'pipe', stderr: 'ignore' })
+  if (dry.exitCode !== 0 || dry.stdout.toString().trim() === '') return false
+  const p = Bun.spawnSync(['git', '-C', path, 'clean', '-fdXq'], { stdout: 'ignore', stderr: 'ignore' })
+  return p.exitCode === 0
+}
 
 function mtimeOf(path: string): number | undefined {
   try {
@@ -118,10 +145,26 @@ export async function runHousekeeping(): Promise<string> {
     entries = []
   }
   const touchedRoots = new Map<string, string | undefined>()
+  const ends = jobEnds()
+  let stripped = 0
   for (const e of entries) {
     if (e.endsWith('.fanout-repo')) continue
     const path = join(wtDir, e)
-    if (!olderThan(path, 7 * DAY_MS, now)) continue
+    const dash0 = e.lastIndexOf('-a')
+    const job0 = dash0 >= 0 ? e.slice(0, dash0) : e
+    const root0 = ends.roots.get(job0) ?? job0
+    // A running chain's worktree is never touched.
+    if (existsSync(leasePath(root0))) continue
+    // Last activity: the job's end, or a later change to the folder itself.
+    const ended = ends.at.get(job0)
+    const last = Math.max(ended ?? 0, mtimeOf(path) ?? 0)
+    if (last === 0) continue
+    if (now - last <= REMOVE_AFTER_MS) {
+      // Git-ignored files (node_modules, build output, caches) are never part
+      // of the saved patch, so a finished worktree sheds them after 2 hours.
+      if (ended !== undefined && now - ended > STRIP_AFTER_MS && stripIgnored(path)) stripped += 1
+      continue
+    }
     const top = topOf(path)
     if (removeWorktree(path, top)) worktrees += 1
     try {
@@ -154,9 +197,13 @@ export async function runHousekeeping(): Promise<string> {
   const logs = cleanDir(join(dataDir(), 'logs'), 14 * DAY_MS, now, false)
   const patches = cleanDir(join(dataDir(), 'patches'), 30 * DAY_MS, now, false)
   const smoke = cleanDir(join(dataDir(), 'smoke'), 1 * DAY_MS, now, true)
-  return `reaped ${leases} leases, removed ${worktrees} worktrees, deleted ${logs} logs, ${patches} patches, ${smoke} smoke dirs`
+  return `reaped ${leases} leases, stripped ${stripped} worktrees, removed ${worktrees} worktrees, deleted ${logs} logs, ${patches} patches, ${smoke} smoke dirs`
 }
 
 export function registerHousekeepingStep(): void {
-  registerStep('housekeeping', runHousekeeping)
+  registerStep('housekeeping', async (ctx) => {
+    const summary = await runHousekeeping()
+    ctx.updateStatus({ last_housekeeping: nowIso() })
+    return summary
+  })
 }

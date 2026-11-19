@@ -27,12 +27,17 @@ export async function maybeLazyUpkeep(): Promise<void> {
     void dataDir()
     const st = readStatusJson()
     const now = nowMs()
-    if (st !== undefined && !olderThan(st.last_upkeep_ok, DAY_MS, now)) return
-    if (st !== undefined && !olderThan(st.last_upkeep_attempt, HOUR_MS, now)) return
+    let args = ['upkeep', '--lazy']
+    if (st !== undefined && !olderThan(st.last_upkeep_ok, DAY_MS, now)) {
+      // The daily run is done; housekeeping still runs hourly while fanout is
+      // in use, so finished worktrees shed their dependencies within hours.
+      if (!olderThan(st.last_housekeeping, HOUR_MS, now)) return
+      args = ['upkeep', '--only', 'housekeeping']
+    } else if (st !== undefined && !olderThan(st.last_upkeep_attempt, HOUR_MS, now)) return
     if (upkeepLockLive()) return
     const log = process.env.FANOUT_LAZY_LOG
     if (log) {
-      appendFileSync(log, 'spawn upkeep --lazy\n')
+      appendFileSync(log, `spawn ${args.join(' ')}\n`)
       return
     }
     const script = process.argv[1]
@@ -40,7 +45,7 @@ export async function maybeLazyUpkeep(): Promise<void> {
     // Upkeep is a new top-level chain: a nested caller must not mark it nested.
     const { FANOUT_DEPTH: _depth, ...env } = process.env
     void _depth
-    const child = spawn(process.execPath, [script, 'upkeep', '--lazy'], {
+    const child = spawn(process.execPath, [script, ...args], {
       env: { ...env },
       detached: true,
       stdio: 'ignore'

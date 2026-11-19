@@ -54,8 +54,9 @@ test('old worktrees go and young ones stay', async () => {
   const first = dirs.find((d) => d.startsWith(roots[0])) as string
   const second = dirs.find((d) => d.startsWith(roots[1])) as string
   const nowMs = Date.parse('2026-11-23T01:00:00Z')
-  age(sb, join(wt, first), 8, nowMs)
-  age(sb, join(wt, second), 6, nowMs)
+  // A finished worktree goes 3 days after its last activity (job end or folder change).
+  age(sb, join(wt, first), 4, nowMs)
+  age(sb, join(wt, second), 2, nowMs)
   const r = await upkeepAt(sb, '2026-11-23T01:00:00Z')
   expect(r.code).toBe(0)
   const list = git(sb, ['worktree', 'list'])
@@ -81,8 +82,8 @@ test('the ref goes with the last worktree', async () => {
   const wt = join(sb.home, 'worktrees')
   const dirs = readdirSync(wt).filter((d) => !d.endsWith('.fanout-repo'))
   const nowMs = Date.parse('2026-11-23T01:00:00Z')
-  age(sb, join(wt, dirs.find((d) => d.startsWith(roots[0])) as string), 8, nowMs)
-  age(sb, join(wt, dirs.find((d) => d.startsWith(roots[1])) as string), 6, nowMs)
+  age(sb, join(wt, dirs.find((d) => d.startsWith(roots[0])) as string), 4, nowMs)
+  age(sb, join(wt, dirs.find((d) => d.startsWith(roots[1])) as string), 2, nowMs)
   await upkeepAt(sb, '2026-11-23T01:00:00Z')
   const refs = git(sb, ['for-each-ref', 'refs/fanout/'])
   expect(refs).not.toContain(roots[0])
@@ -168,3 +169,30 @@ test('a stale lease is reaped once', async () => {
   expect(events).toHaveLength(2)
   expect(String(events[1].detail)).toContain('0 leases')
 }, 60000)
+
+test('ignored files leave a finished worktree after 2 hours; code, patch and running chains stay', async () => {
+  const sb = sandbox().at(BASE)
+  await sb.fanout(runArgs(sb))
+  await sb.fanout(runArgs(sb))
+  const wt = join(sb.home, 'worktrees')
+  const dirs = readdirSync(wt).filter((d) => !d.endsWith('.fanout-repo'))
+  expect(dirs).toHaveLength(2)
+  for (const d of dirs) {
+    writeFileSync(join(wt, d, '.gitignore'), 'node_modules/\n')
+    mkdirSync(join(wt, d, 'node_modules', 'pkg'), { recursive: true })
+    writeFileSync(join(wt, d, 'node_modules', 'pkg', 'index.js'), 'x')
+  }
+  // The second chain looks still running: a live lease for its root.
+  const running = dirs[1].slice(0, dirs[1].lastIndexOf('-a'))
+  const root = String(sb.ledger().find((e) => e.event === 'job_start' && e.job === running)?.root)
+  mkdirSync(join(sb.home, 'run'), { recursive: true })
+  writeFileSync(
+    join(sb.home, 'run', `${root}.lease`),
+    JSON.stringify({ root, job: root, pid: process.pid, startTicks: 0 })
+  )
+  const r = await upkeepAt(sb, '2026-11-15T04:00:00Z')
+  expect(r.code).toBe(0)
+  expect(existsSync(join(wt, dirs[0], 'node_modules'))).toBe(false)
+  expect(existsSync(join(wt, dirs[0], 'out.txt'))).toBe(true)
+  expect(existsSync(join(wt, dirs[1], 'node_modules'))).toBe(true)
+}, 120000)

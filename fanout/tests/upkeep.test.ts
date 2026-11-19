@@ -137,6 +137,28 @@ test('the lazy trigger fires only when due', async () => {
     { FANOUT_NO_LAZY: '1' }
   )
   expect(disabled.log).toBeUndefined()
+  // Full upkeep done recently, housekeeping last ran 2h ago: only housekeeping runs.
+  const hk = await statusCase(
+    (sb) =>
+      statusJson(sb, {
+        last_upkeep_ok: iso(3 * 3600 * 1000),
+        last_upkeep_attempt: iso(3 * 3600 * 1000),
+        last_housekeeping: iso(2 * 3600 * 1000)
+      }),
+    {}
+  )
+  expect(hk.log).toBe('spawn upkeep --only housekeeping\n')
+  // Housekeeping ran 20 minutes ago: nothing runs.
+  const hkRecent = await statusCase(
+    (sb) =>
+      statusJson(sb, {
+        last_upkeep_ok: iso(3 * 3600 * 1000),
+        last_upkeep_attempt: iso(3 * 3600 * 1000),
+        last_housekeeping: iso(20 * 60 * 1000)
+      }),
+    {}
+  )
+  expect(hkRecent.log).toBeUndefined()
   // No status.json at all.
   const missing = await statusCase(() => {}, {})
   expect(missing.log).toBe('spawn upkeep --lazy\n')
